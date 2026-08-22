@@ -148,13 +148,6 @@ try
     // /health verifica DB (503 si Postgres no responde) — usable como healthcheck de contenedor.
     app.MapHealthChecks("/health");
 
-    // Endpoint de ejemplo protegido: muestra el patrón [Authorize] + claims.
-    app.MapGet("/api/v1/me", (ClaimsPrincipal user) => Results.Ok(new
-    {
-        name = user.Identity?.Name,
-        roles = user.FindAll(ClaimTypes.Role).Select(c => c.Value),
-    })).RequireAuthorization();
-
     app.MapControllers();
 
     app.Run();

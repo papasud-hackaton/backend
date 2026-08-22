@@ -132,9 +132,10 @@ dotnet ef migrations add <Name> --context AppDbContext \
   The image is identical across environments; only the env differs.
 - If the `Dockerfile` gains a project, its `.csproj` must be added to the
   explicit `COPY` list so restore layer caching keeps working.
-- CI publishes per branch: `ae/test` → `:test`, `ae/beta` → `:beta`. `main` is
-  integration and does **not** deploy. The registry is set through
-  `DOCKER_REGISTRY` (still a placeholder — replace before the first deploy).
+- **There is no CI/CD pipeline.** Images are built and pushed by hand
+  (`docker compose build` / `push`) against the registry in `DOCKER_REGISTRY`,
+  which is still a placeholder. Run the tests locally before pushing — nothing
+  gates a merge automatically.
 
 ## 6. Security & runtime
 
@@ -167,8 +168,8 @@ dotnet ef migrations add <Name> --context AppDbContext \
   `fix(scope): ...`, `chore: ...`. Commits are authored solely by the repository
   owner; no tool or assistant attribution, co-author trailers, or generated-by
   footers.
-- Branch flow: `feature → main → ae/test | ae/beta`. Environment branches are
-  merge targets only, never merge sources.
+- Branch flow: `feature → main` through a PR. There is no automated check on a
+  PR, so run the build and the unit tests yourself before merging.
 - Tests: unit tests must run without a database
   (`--filter "FullyQualifiedName!~Integration"`); integration tests use
   Testcontainers and need Docker.
@@ -228,6 +229,24 @@ dotnet ef migrations add <Name> --context AppDbContext \
   to a documented dev account; outside Development it creates nothing and logs a
   warning.
 
+### Account lifecycle — no self-registration
+
+**There is no public sign-up, and there must never be one.** Accounts are
+provisioned by an admin:
+
+1. The initial admin is seeded at startup (above).
+2. That admin creates every other user with `POST /api/v1/users`, choosing the
+   role and the initial password.
+3. The user changes that password with `POST /api/v1/auth/change-password`,
+   which requires the current one. An admin who forgot nothing can still reset
+   somebody else's password with `POST /api/v1/users/{id}/reset-password`.
+4. Users are **never deleted** — audit rows reference them. Use
+   `PATCH /api/v1/users/{id}/active` for the logical deactivation; an inactive
+   user cannot authenticate. An admin cannot deactivate their own account.
+
+Password rules live in one place, `PasswordPolicy` (minimum 8 characters) —
+creation, reset and self-change all go through it.
+
 ## 10. Pagination (mandatory)
 
 **Every list endpoint is paginated. No exceptions** — not even fixed catalogs
@@ -263,8 +282,13 @@ handler or controller:
 | Endpoint | Roles | Notes |
 | --- | --- | --- |
 | `POST /api/v1/auth/login` | anonymous | Issues the JWT |
+| `GET /api/v1/auth/me` | authenticated | Current user, read from the DB |
+| `POST /api/v1/auth/change-password` | authenticated | Own password; requires the current one |
 | `GET /api/v1/users` | admin, supervisor | Paginated, filters: `search`, `roleId`, `isActive` |
-| `POST /api/v1/users` | admin | 409 on duplicate email/employee number |
+| `GET /api/v1/users/{id}` | admin, supervisor | Detail |
+| `POST /api/v1/users` | admin | Manual creation; 409 on duplicate email/employee number |
+| `POST /api/v1/users/{id}/reset-password` | admin | Sets a new password without the old one |
+| `PATCH /api/v1/users/{id}/active` | admin | Logical activate/deactivate |
 | `GET /api/v1/roles` | authenticated | Paginated catalog |
 | `GET /api/v1/statuses` | authenticated | Paginated catalog |
 | `GET /api/v1/audit` | admin, supervisor | Paginated, filters: `userId`, `action`, `entityType`, `entityId`, `from`, `to` |

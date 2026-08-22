@@ -1,6 +1,7 @@
 using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
 using Papasur.Application.Audit.Ports;
+using Papasur.Application.Auth;
 using Papasur.Application.Auth.Ports;
 using Papasur.Application.Roles.Ports;
 using Papasur.Application.Users.Ports;
@@ -16,8 +17,6 @@ public sealed class CreateUserCommandHandler(
     IAuditRepository audit)
     : ICommandHandler<CreateUserCommand, Result<Guid>>
 {
-    public const int MinPasswordLength = 8;
-
     public async Task<Result<Guid>> Handle(CreateUserCommand command, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(command.Name))
@@ -37,11 +36,9 @@ public sealed class CreateUserCommandHandler(
             return Result.Failure<Guid>(new Error("User.EmployeeNumberRequired", "El legajo es obligatorio."));
         }
 
-        if (string.IsNullOrWhiteSpace(command.Password) || command.Password.Length < MinPasswordLength)
+        if (PasswordPolicy.Validate(command.Password) is { } passwordError)
         {
-            return Result.Failure<Guid>(new Error(
-                "User.PasswordTooShort",
-                $"La contraseña debe tener al menos {MinPasswordLength} caracteres."));
+            return Result.Failure<Guid>(passwordError);
         }
 
         if (!await roles.ExistsAsync(command.RoleId, cancellationToken))

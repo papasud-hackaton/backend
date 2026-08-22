@@ -40,4 +40,12 @@ public static class AuditActions
     public const string LoginFailed = "login_failed";
 
     public const string UserCreated = "user_created";
+
+    public const string UserActivated = "user_activated";
+
+    public const string UserDeactivated = "user_deactivated";
+
+    public const string PasswordChanged = "password_changed";
+
+    public const string PasswordReset = "password_reset";
 }

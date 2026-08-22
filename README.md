@@ -67,13 +67,11 @@ dotnet ef migrations script --idempotent -c AppDbContext \
 - **`/health`** chequea Postgres (503 si está caído) — usable como healthcheck de contenedor/LB.
 - **Serilog** estructurado a consola + request logging (config en `appsettings` sección `Serilog`).
 
-## Docker & CI
+## Docker
 
-- `docker-compose.yml` = imagen base test/CI (target `final`, self-contained). `docker-compose.override.yml` = dev (target `dev`, `dotnet watch`, repo montado, **Postgres 17** con healthcheck).
-- `ci.yml`: build + tests unitarios + tests de integración (Testcontainers) en PRs y pushes a `main` (exigirlo en branch protection).
-- `build-and-push.yml`: push a `ae/test`/`ae/beta` → corre tests → buildea y pushea `papasur/api:test|beta` al registry definido en `DOCKER_REGISTRY`. `main` es integración, no deploya. **TODO**: setear el registry real en el workflow, compose y `.env`.
-- `guard-merge-direction.yml`: las ramas de entorno sólo reciben merges (flujo `feature → main → ae/test|ae/beta`).
-- `dependabot.yml`: NuGet + GitHub Actions semanal.
+- `docker-compose.yml` = imagen base (target `final`, self-contained). `docker-compose.override.yml` = dev (target `dev`, `dotnet watch`, repo montado, **Postgres 17** con healthcheck).
+- **Sin pipeline de CI/CD**: no hay GitHub Actions que buildeen, testeen ni deployen. Correr `dotnet build` y los tests a mano antes de mergear, y buildear/pushear la imagen con `docker compose build` / `docker compose push` (setear antes el registry real en `DOCKER_REGISTRY`).
+- `dependabot.yml`: actualizaciones de NuGet semanales.
 
 ## Configuración
 
