@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Papasur.Api.Authorization;
-using Papasur.Api.Contracts;
 using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
 using Papasur.Application.Metrics.Ports;
@@ -23,15 +22,16 @@ public class MetricsController : ControllerBase
     [HttpGet]
     [AuthorizeRoles(RoleNames.Admin, RoleNames.Supervisor)]
     public async Task<ActionResult<PagedResult<MetricDto>>> List(
-        [FromQuery] PageQuery page,
         [FromServices] IQueryHandler<GetMetricsQuery, Result<PagedResult<MetricDto>>> handler,
         CancellationToken cancellationToken,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = PageRequest.DefaultPageSize,
         [FromQuery(Name = "source")] string[]? sources = null,
         [FromQuery] DateTime? from = null,
         [FromQuery] DateTime? to = null)
     {
         var result = await handler.Handle(
-            new GetMetricsQuery(page.ToPageRequest(), new MetricFilter(from, to), sources),
+            new GetMetricsQuery(new PageRequest(page, pageSize), new MetricFilter(from, to), sources),
             cancellationToken);
 
         if (result.IsFailure)

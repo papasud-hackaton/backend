@@ -119,19 +119,51 @@ try
     app.UseExceptionHandler();
     app.UseMiddleware<SecurityHeadersMiddleware>();
 
-    // Migraciones automáticas al arrancar (aplica las migraciones EF pendientes).
-    // Controlado por Ef:AutoMigrate (env Ef__AutoMigrate); ON por defecto en Development.
+    // Migraciones automáticas al arrancar (aplica las migraciones EF pendientes) y QUEDAN
+    // REGISTRADAS: se loguea qué había aplicado, qué estaba pendiente y qué se aplicó.
+    // EF además las asienta en __EFMigrationsHistory. Controlado por Ef:AutoMigrate
+    // (env Ef__AutoMigrate); ON por defecto en Development.
     var autoMigrate = app.Configuration.GetValue("Ef:AutoMigrate", app.Environment.IsDevelopment());
     if (autoMigrate)
     {
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.MigrateAsync();
+
+        var applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+        var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+
+        if (pending.Count == 0)
+        {
+            Log.Information(
+                "Migraciones: la base está al día ({AppliedCount} aplicadas, última {LastMigration}).",
+                applied.Count,
+                applied.LastOrDefault() ?? "ninguna");
+        }
+        else
+        {
+            Log.Information(
+                "Migraciones: aplicando {PendingCount} pendiente(s) sobre {AppliedCount} ya aplicada(s): {Pending}",
+                pending.Count,
+                applied.Count,
+                pending);
+
+            var startedAt = DateTime.UtcNow;
+            await db.Database.MigrateAsync();
+
+            Log.Information(
+                "Migraciones: aplicadas {Pending} en {ElapsedMs} ms (registradas en __EFMigrationsHistory).",
+                pending,
+                (int)(DateTime.UtcNow - startedAt).TotalMilliseconds);
+        }
 
         // Admin inicial (sólo si no hay ningún usuario): sin esto nadie podría loguearse
         // para dar de alta el primero. Credenciales por Seed__AdminEmail/Seed__AdminPassword.
         var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
         await seeder.SeedAsync(app.Environment.IsDevelopment());
+    }
+    else
+    {
+        Log.Warning("Migraciones automáticas DESACTIVADAS (Ef__AutoMigrate=false): aplicarlas a mano.");
     }
 
     if (app.Environment.IsDevelopment())

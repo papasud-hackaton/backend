@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Papasur.Api.Contracts;
 using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
 using Papasur.Application.Statuses.Queries.GetStatuses;
@@ -15,10 +14,11 @@ public class StatusesController : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<PagedResult<StatusDto>>> List(
-        [FromQuery] PageQuery page,
         [FromServices] IQueryHandler<GetStatusesQuery, PagedResult<StatusDto>> handler,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = PageRequest.DefaultPageSize)
     {
-        return Ok(await handler.Handle(new GetStatusesQuery(page.ToPageRequest()), cancellationToken));
+        return Ok(await handler.Handle(new GetStatusesQuery(new PageRequest(page, pageSize)), cancellationToken));
     }
 }

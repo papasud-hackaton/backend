@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Papasur.Api.Authorization;
-using Papasur.Api.Contracts;
 using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
 using Papasur.Application.Users.Commands.CreateUser;
@@ -25,15 +24,16 @@ public class UsersController : ControllerBase
     [HttpGet]
     [AuthorizeRoles(RoleNames.Admin, RoleNames.Supervisor)]
     public async Task<ActionResult<PagedResult<UserDto>>> List(
-        [FromQuery] PageQuery page,
         [FromServices] IQueryHandler<GetUsersQuery, PagedResult<UserDto>> handler,
         CancellationToken cancellationToken,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = PageRequest.DefaultPageSize,
         [FromQuery] string? search = null,
         [FromQuery] int? roleId = null,
         [FromQuery] bool? isActive = null)
     {
         var result = await handler.Handle(
-            new GetUsersQuery(page.ToPageRequest(), search, roleId, isActive),
+            new GetUsersQuery(new PageRequest(page, pageSize), search, roleId, isActive),
             cancellationToken);
 
         return Ok(result);

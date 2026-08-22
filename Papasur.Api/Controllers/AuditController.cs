@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Papasur.Api.Authorization;
-using Papasur.Api.Contracts;
 using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
 using Papasur.Application.Audit.Ports;
@@ -21,9 +20,10 @@ public class AuditController : ControllerBase
     [HttpGet]
     [AuthorizeRoles(RoleNames.Admin, RoleNames.Supervisor)]
     public async Task<ActionResult<PagedResult<AuditEntryDto>>> List(
-        [FromQuery] PageQuery page,
         [FromServices] IQueryHandler<GetAuditEntriesQuery, Result<PagedResult<AuditEntryDto>>> handler,
         CancellationToken cancellationToken,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = PageRequest.DefaultPageSize,
         [FromQuery] Guid? userId = null,
         [FromQuery] string? action = null,
         [FromQuery] string? entityType = null,
@@ -34,7 +34,7 @@ public class AuditController : ControllerBase
         var filter = new AuditFilter(userId, action, entityType, entityId, from, to);
 
         var result = await handler.Handle(
-            new GetAuditEntriesQuery(page.ToPageRequest(), filter),
+            new GetAuditEntriesQuery(new PageRequest(page, pageSize), filter),
             cancellationToken);
 
         if (result.IsFailure)
