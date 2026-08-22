@@ -5,11 +5,18 @@ using Papasur.Application.Audit.Queries.GetAuditEntries;
 using Papasur.Application.Auth.Commands.ChangePassword;
 using Papasur.Application.Auth.Commands.Login;
 using Papasur.Application.Auth.Queries.GetCurrentUser;
+using Papasur.Application.Documentos.Commands.ConfirmarDocumento;
+using Papasur.Application.Documentos.Commands.GenerarBorrador;
+using Papasur.Application.Documentos.Inference;
+using Papasur.Application.Documentos.Queries.ObtenerDocumento;
+using Papasur.Application.Documentos.Queries.ObtenerPlantillas;
 using Papasur.Application.Items.Commands.CrearItem;
 using Papasur.Application.Items.Queries.ObtenerItems;
 using Papasur.Application.Metrics.Queries.GetMetrics;
 using Papasur.Application.Roles.Queries.GetRoles;
 using Papasur.Application.Statuses.Queries.GetStatuses;
+using Papasur.Application.Trazabilidad.Queries.ObtenerLotePorId;
+using Papasur.Application.Trazabilidad.Queries.ObtenerLotes;
 using Papasur.Application.Users.Commands.CreateUser;
 using Papasur.Application.Users.Commands.ResetUserPassword;
 using Papasur.Application.Users.Commands.SetUserActive;
@@ -53,6 +60,30 @@ public static class DependencyInjection
         services.AddScoped<
             IQueryHandler<GetMetricsQuery, Result<PagedResult<MetricDto>>>,
             GetMetricsQueryHandler>();
+
+        // Trazabilidad (lotes + movimientos importados de la planilla)
+        services.AddScoped<
+            IQueryHandler<ObtenerLotesQuery, PagedResult<LoteDto>>,
+            ObtenerLotesQueryHandler>();
+        services.AddScoped<
+            IQueryHandler<ObtenerLotePorIdQuery, Result<LoteDetalleDto>>,
+            ObtenerLotePorIdQueryHandler>();
+
+        // Documentos de exportación (copiloto)
+        // Motor de inferencia por reglas (determinístico, sin dependencias externas).
+        services.AddScoped<IMotorInferencia, MotorInferenciaReglas>();
+        services.AddScoped<
+            IQueryHandler<ObtenerPlantillasQuery, PagedResult<PlantillaDto>>,
+            ObtenerPlantillasQueryHandler>();
+        services.AddScoped<
+            ICommandHandler<GenerarBorradorCommand, Result<Guid>>,
+            GenerarBorradorCommandHandler>();
+        services.AddScoped<
+            IQueryHandler<ObtenerDocumentoQuery, Result<DocumentoExportacionDto>>,
+            ObtenerDocumentoQueryHandler>();
+        services.AddScoped<
+            ICommandHandler<ConfirmarDocumentoCommand, Result>,
+            ConfirmarDocumentoCommandHandler>();
 
         // Items (feature de ejemplo)
         services.AddScoped<ICommandHandler<CrearItemCommand, Result<Guid>>, CrearItemCommandHandler>();

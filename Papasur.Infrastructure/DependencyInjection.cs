@@ -3,18 +3,22 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Papasur.Application.Audit.Ports;
 using Papasur.Application.Auth.Ports;
+using Papasur.Application.Documentos.Ports;
 using Papasur.Application.Items.Ports;
 using Papasur.Application.Metrics.Ports;
 using Papasur.Application.Roles.Ports;
 using Papasur.Application.Statuses.Ports;
+using Papasur.Application.Trazabilidad.Ports;
 using Papasur.Application.Users.Ports;
 using Papasur.Infrastructure.Audit;
 using Papasur.Infrastructure.Auth;
+using Papasur.Infrastructure.Documentos;
 using Papasur.Infrastructure.Items;
 using Papasur.Infrastructure.Metrics;
 using Papasur.Infrastructure.Persistence;
 using Papasur.Infrastructure.Roles;
 using Papasur.Infrastructure.Statuses;
+using Papasur.Infrastructure.Trazabilidad;
 using Papasur.Infrastructure.Users;
 
 namespace Papasur.Infrastructure;
@@ -49,6 +53,9 @@ public static class DependencyInjection
 
         // Repositorios (implementaciones Ef* de los puertos de Application)
         services.AddScoped<IItemRepository, EfItemRepository>();
+        services.AddScoped<ILoteRepository, EfLoteRepository>();
+        services.AddScoped<IPlantillaRepository, EfPlantillaRepository>();
+        services.AddScoped<IDocumentoRepository, EfDocumentoRepository>();
         services.AddScoped<IUserRepository, EfUserRepository>();
         services.AddScoped<IRoleRepository, EfRoleRepository>();
         services.AddScoped<IStatusRepository, EfStatusRepository>();
@@ -64,6 +71,7 @@ public static class DependencyInjection
         services.AddScoped<IMetricProvider, ItemMetricProvider>();
 
         services.AddScoped<DatabaseSeeder>();
+        services.AddScoped<TrazabilidadSeeder>();
 
         return services;
     }

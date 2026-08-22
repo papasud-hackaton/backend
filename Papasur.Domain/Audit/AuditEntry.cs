@@ -48,4 +48,8 @@ public static class AuditActions
     public const string PasswordChanged = "password_changed";
 
     public const string PasswordReset = "password_reset";
+
+    public const string DocumentGenerated = "document_generated";
+
+    public const string DocumentConfirmed = "document_confirmed";
 }

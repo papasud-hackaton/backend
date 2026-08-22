@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Papasur.Domain.Audit;
+using Papasur.Domain.Documentos;
 using Papasur.Domain.Items;
 using Papasur.Domain.Statuses;
+using Papasur.Domain.Trazabilidad;
 using Papasur.Domain.Users;
 
 namespace Papasur.Infrastructure.Persistence;
@@ -22,6 +24,28 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Status> Statuses => Set<Status>();
 
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+
+    // Trazabilidad (fuente de verdad: la doc de exportación es una proyección sobre esto).
+    public DbSet<Variedad> Variedades => Set<Variedad>();
+
+    public DbSet<Campo> Campos => Set<Campo>();
+
+    public DbSet<Transportista> Transportistas => Set<Transportista>();
+
+    public DbSet<Cliente> Clientes => Set<Cliente>();
+
+    public DbSet<Lote> Lotes => Set<Lote>();
+
+    public DbSet<Movimiento> Movimientos => Set<Movimiento>();
+
+    // Documentación de exportación (copiloto).
+    public DbSet<PlantillaDocumento> PlantillasDocumento => Set<PlantillaDocumento>();
+
+    public DbSet<CampoPlantilla> CamposPlantilla => Set<CampoPlantilla>();
+
+    public DbSet<DocumentoExportacion> DocumentosExportacion => Set<DocumentoExportacion>();
+
+    public DbSet<ValorCampo> ValoresCampo => Set<ValorCampo>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -106,6 +130,184 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(a => a.UserId);
             entity.HasIndex(a => a.Action);
             entity.HasIndex(a => new { a.EntityType, a.EntityId });
+        });
+
+        // ---------- Trazabilidad ----------
+
+        modelBuilder.Entity<Variedad>(entity =>
+        {
+            entity.ToTable("variedad");
+            entity.HasKey(v => v.Id);
+            entity.Property(v => v.Nombre).HasMaxLength(120).IsRequired();
+            entity.HasIndex(v => v.Nombre).IsUnique();
+        });
+
+        modelBuilder.Entity<Campo>(entity =>
+        {
+            entity.ToTable("campo");
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Nombre).HasMaxLength(150).IsRequired();
+            entity.Property(c => c.Establecimiento).HasMaxLength(150);
+            entity.Property(c => c.Pivote).HasMaxLength(50);
+            entity.Property(c => c.Cuadrante).HasMaxLength(50);
+            entity.HasIndex(c => c.Nombre);
+        });
+
+        modelBuilder.Entity<Transportista>(entity =>
+        {
+            entity.ToTable("transportista");
+            entity.HasKey(t => t.Id);
+            entity.Property(t => t.Nombre).HasMaxLength(150).IsRequired();
+            entity.HasIndex(t => t.Nombre).IsUnique();
+        });
+
+        modelBuilder.Entity<Cliente>(entity =>
+        {
+            entity.ToTable("cliente");
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Nombre).HasMaxLength(150).IsRequired();
+            entity.Property(c => c.Pais).HasMaxLength(100);
+            entity.HasIndex(c => c.Nombre);
+        });
+
+        modelBuilder.Entity<Lote>(entity =>
+        {
+            entity.ToTable("lote");
+            entity.HasKey(l => l.Id);
+            entity.Property(l => l.Codigo).HasMaxLength(50).IsRequired();
+            entity.Property(l => l.Categoria).HasMaxLength(100);
+            entity.Property(l => l.SuperficieHa).HasPrecision(10, 3);
+            entity.HasIndex(l => l.Codigo);
+
+            entity.HasOne(l => l.Variedad)
+                .WithMany(v => v.Lotes)
+                .HasForeignKey(l => l.VariedadId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(l => l.Campo)
+                .WithMany(c => c.Lotes)
+                .HasForeignKey(l => l.CampoId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Movimiento>(entity =>
+        {
+            entity.ToTable("movimiento");
+            entity.HasKey(m => m.Id);
+            entity.Property(m => m.Tipo).HasMaxLength(30).IsRequired();
+            entity.Property(m => m.NumeroRemito).HasMaxLength(50).IsRequired();
+            entity.Property(m => m.Kilogramos).HasPrecision(18, 3);
+            entity.Property(m => m.KgPromedio).HasPrecision(10, 3);
+            entity.Property(m => m.Presentacion).HasMaxLength(50);
+            entity.Property(m => m.Categoria).HasMaxLength(100);
+            entity.Property(m => m.Calibre).HasMaxLength(50);
+            entity.Property(m => m.Comisionista).HasMaxLength(150);
+            entity.Property(m => m.Destino).HasMaxLength(150);
+            entity.Property(m => m.Dtv).HasMaxLength(100);
+            entity.Property(m => m.Observaciones).HasMaxLength(1000);
+            entity.HasIndex(m => m.NumeroRemito);
+            entity.HasIndex(m => m.Fecha);
+            entity.HasIndex(m => m.Tipo);
+            entity.HasIndex(m => m.Dtv);
+
+            entity.HasOne(m => m.Lote)
+                .WithMany(l => l.Movimientos)
+                .HasForeignKey(m => m.LoteId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(m => m.Transportista)
+                .WithMany(t => t.Movimientos)
+                .HasForeignKey(m => m.TransportistaId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(m => m.Cliente)
+                .WithMany(c => c.Movimientos)
+                .HasForeignKey(m => m.ClienteId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ---------- Documentación de exportación ----------
+
+        modelBuilder.Entity<PlantillaDocumento>(entity =>
+        {
+            entity.ToTable("plantilla_documento");
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.Nombre).HasMaxLength(200).IsRequired();
+            entity.Property(p => p.Tipo).HasMaxLength(50).IsRequired();
+            entity.Property(p => p.Organismo).HasMaxLength(150);
+            entity.Property(p => p.PaisDestino).HasMaxLength(100);
+            entity.HasIndex(p => new { p.Nombre, p.Version }).IsUnique();
+            entity.HasIndex(p => p.Tipo);
+        });
+
+        modelBuilder.Entity<CampoPlantilla>(entity =>
+        {
+            entity.ToTable("campo_plantilla");
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Clave).HasMaxLength(100).IsRequired();
+            entity.Property(c => c.Etiqueta).HasMaxLength(200).IsRequired();
+            entity.Property(c => c.TipoDato).HasMaxLength(30).IsRequired();
+            entity.Property(c => c.ReglaMapeo).HasMaxLength(300);
+            entity.HasIndex(c => new { c.PlantillaDocumentoId, c.Clave }).IsUnique();
+
+            entity.HasOne(c => c.PlantillaDocumento)
+                .WithMany(p => p.Campos)
+                .HasForeignKey(c => c.PlantillaDocumentoId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DocumentoExportacion>(entity =>
+        {
+            entity.ToTable("documento_exportacion");
+            entity.HasKey(d => d.Id);
+            entity.HasIndex(d => d.LoteId);
+            entity.HasIndex(d => d.StatusId);
+
+            entity.HasOne(d => d.Lote)
+                .WithMany()
+                .HasForeignKey(d => d.LoteId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.Movimiento)
+                .WithMany(m => m.Documentos)
+                .HasForeignKey(d => d.MovimientoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.PlantillaDocumento)
+                .WithMany()
+                .HasForeignKey(d => d.PlantillaDocumentoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.Status)
+                .WithMany()
+                .HasForeignKey(d => d.StatusId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(d => d.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ValorCampo>(entity =>
+        {
+            entity.ToTable("valor_campo");
+            entity.HasKey(v => v.Id);
+            entity.Property(v => v.Valor).HasMaxLength(2000);
+            entity.Property(v => v.InferidoDesde).HasMaxLength(300);
+            // El origen se guarda como texto legible ("Inferido"/"Manual"/"Dictado"), no como número.
+            entity.Property(v => v.Origen).HasConversion<string>().HasMaxLength(20);
+            entity.HasIndex(v => new { v.DocumentoExportacionId, v.CampoPlantillaId }).IsUnique();
+
+            entity.HasOne(v => v.DocumentoExportacion)
+                .WithMany(d => d.Valores)
+                .HasForeignKey(v => v.DocumentoExportacionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(v => v.CampoPlantilla)
+                .WithMany()
+                .HasForeignKey(v => v.CampoPlantillaId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

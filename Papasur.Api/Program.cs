@@ -160,6 +160,14 @@ try
         // para dar de alta el primero. Credenciales por Seed__AdminEmail/Seed__AdminPassword.
         var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
         await seeder.SeedAsync(app.Environment.IsDevelopment());
+
+        // Datos de trazabilidad de DEMO (lotes/movimientos + plantilla de proforma), sólo en Development
+        // y sólo si no hay lotes. Deja el copiloto listo para probarse end-to-end.
+        if (app.Environment.IsDevelopment())
+        {
+            var trazabilidadSeeder = scope.ServiceProvider.GetRequiredService<TrazabilidadSeeder>();
+            await trazabilidadSeeder.SeedAsync();
+        }
     }
     else
     {
