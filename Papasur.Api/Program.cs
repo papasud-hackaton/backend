@@ -41,7 +41,12 @@ try
         .AddDbContextCheck<AppDbContext>("postgres");
 
     // CORS por env: Cors__AllowedOrigins__0, __1, ... En Development sin config se permite localhost.
-    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+    // Se descartan los vacíos: en el stack las variables se declaran aunque no se usen
+    // (CORS_ORIGIN_1 sin valor), y un origen en blanco contaba como "hay configuración",
+    // dejando la política sin ningún origen válido y sin el fallback de Development.
+    var allowedOrigins = (builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [])
+        .Where(origin => !string.IsNullOrWhiteSpace(origin))
+        .ToArray();
     builder.Services.AddCors(options => options.AddPolicy("Frontend", policy =>
     {
         if (allowedOrigins.Length > 0)
