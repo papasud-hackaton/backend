@@ -1,0 +1,25 @@
+# Build
+bin/
+obj/
+out/
+*.user
+*.suo
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.DotSettings.user
+
+# Env / secrets — nunca commitear
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+
+# Test / coverage
+TestResults/
+coverage/
+*.trx

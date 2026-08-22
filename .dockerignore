@@ -1,0 +1,16 @@
+**/bin/
+**/obj/
+**/out/
+**/.git/
+**/.github/
+**/.vs/
+**/.vscode/
+**/node_modules/
+**/*.user
+**/.env
+**/.env.*
+!**/.env.example
+**/docker-compose*.yml
+**/Dockerfile*
+README.md
+docs/
