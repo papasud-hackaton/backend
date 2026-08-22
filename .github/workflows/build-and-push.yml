@@ -35,7 +35,7 @@ jobs:
 
       # Gate de tests: se ejecutan ANTES de buildear/pushear; si fallan, el pipeline se detiene.
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
