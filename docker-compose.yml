@@ -1,0 +1,32 @@
+# Compose BASE (imagen de test/CI). El CI setea API_IMAGE_TAG según la rama (test/beta).
+# Para desarrollo local se aplica automáticamente docker-compose.override.yml (target dev + Postgres 17).
+services:
+  papasur.api:
+    container_name: papasur.api
+    platform: linux/amd64
+    image: "${DOCKER_REGISTRY:-registry.example.com:5000}/papasur/api:${API_IMAGE_TAG:-test}"
+    build:
+      context: .
+      dockerfile: Papasur.Api/Dockerfile
+      target: final
+      args:
+        APP_UID: ${APP_UID:-1000}
+        BUILD_CONFIGURATION: ${BUILD_CONFIGURATION:-Release}
+    environment:
+      - ConnectionStrings__pg=${PG_CONN}
+      # Migraciones automáticas al arrancar (aplica las migraciones EF pendientes).
+      # Override por entorno con Ef__AutoMigrate=false si se quiere aplicar a mano.
+      - Ef__AutoMigrate=${Ef__AutoMigrate:-true}
+      # JWT: key simétrica >= 32 bytes, obligatoria fuera de Development.
+      - Jwt__SymmetricKey=${Jwt__SymmetricKey}
+      - Jwt__Issuer=${Jwt__Issuer:-papasur}
+      - Jwt__Audience=${Jwt__Audience:-papasur}
+      # CORS credencializado: orígenes del front y backoffice.
+      - Cors__AllowedOrigins__0=${Cors__AllowedOrigins__0:-}
+      - Cors__AllowedOrigins__1=${Cors__AllowedOrigins__1:-}
+      # Rate limiting global por IP.
+      - RateLimiting__PermitLimit=${RateLimiting__PermitLimit:-100}
+      - RateLimiting__WindowSeconds=${RateLimiting__WindowSeconds:-10}
+    ports:
+      - "8090:8080"
+      - "8091:8081"

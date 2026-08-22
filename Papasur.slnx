@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Papasur.Api/Papasur.Api.csproj" />
+  <Project Path="Papasur.Application/Papasur.Application.csproj" />
+  <Project Path="Papasur.Domain/Papasur.Domain.csproj" />
+  <Project Path="Papasur.Infrastructure/Papasur.Infrastructure.csproj" />
+  <Project Path="Papasur.Tests/Papasur.Tests.csproj" />
+</Solution>

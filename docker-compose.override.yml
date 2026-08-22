@@ -1,0 +1,45 @@
+# Override de DESARROLLO (se aplica automáticamente con `docker compose up`).
+# API en target dev (dotnet watch, repo montado en /workspace) + Postgres 17 local.
+services:
+  papasur.api:
+    container_name: papasur.api.dev
+    image: papasurapi:dev
+    build:
+      context: .
+      dockerfile: Papasur.Api/Dockerfile
+      target: dev
+      args:
+        BUILD_CONFIGURATION: ${BUILD_CONFIGURATION:-Debug}
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__pg=${PG_CONN:-Host=papasur.db;Port=5432;Database=papasur;Username=postgres;Password=postgres;SSL Mode=Disable}
+      - Ef__AutoMigrate=true
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./:/workspace
+    depends_on:
+      papasur.db:
+        condition: service_healthy
+
+  papasur.db:
+    container_name: papasur.db
+    image: postgres:17
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-papasur}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d papasur"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+    driver: local
