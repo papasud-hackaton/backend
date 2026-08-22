@@ -1,19 +1,18 @@
+using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
 using Papasur.Application.Items.Ports;
 
 namespace Papasur.Application.Items.Queries.ObtenerItems;
 
 public sealed class ObtenerItemsQueryHandler(IItemRepository repository)
-    : IQueryHandler<ObtenerItemsQuery, IReadOnlyList<ItemDto>>
+    : IQueryHandler<ObtenerItemsQuery, PagedResult<ItemDto>>
 {
-    public async Task<IReadOnlyList<ItemDto>> Handle(
+    public async Task<PagedResult<ItemDto>> Handle(
         ObtenerItemsQuery query,
         CancellationToken cancellationToken)
     {
-        var items = await repository.ListAsync(cancellationToken);
+        var page = await repository.ListAsync(query.Page, cancellationToken);
 
-        return items
-            .Select(i => new ItemDto(i.Id, i.Nombre, i.Valor, i.FechaRegistro))
-            .ToList();
+        return page.Map(i => new ItemDto(i.Id, i.Nombre, i.Valor, i.FechaRegistro));
     }
 }

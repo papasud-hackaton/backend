@@ -67,6 +67,10 @@ try
         jwtKey = "dev-only-insecure-symmetric-key-0123456789";
     }
 
+    // Se escribe de vuelta en la config para que JwtTokenGenerator (Infrastructure) firme
+    // con EXACTAMENTE la misma key con la que la API valida — una sola fuente de verdad.
+    builder.Configuration["Jwt:SymmetricKey"] = jwtKey;
+
     if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
     {
         throw new InvalidOperationException("Jwt__SymmetricKey debe tener al menos 32 bytes.");
@@ -85,6 +89,9 @@ try
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
                 ValidateLifetime = true,
                 ClockSkew = TimeSpan.FromSeconds(30),
+                // Claims que emite JwtTokenGenerator; RoleClaimType es lo que consume [AuthorizeRoles].
+                NameClaimType = ClaimTypes.Name,
+                RoleClaimType = ClaimTypes.Role,
             };
         });
 
@@ -120,6 +127,11 @@ try
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.MigrateAsync();
+
+        // Admin inicial (sólo si no hay ningún usuario): sin esto nadie podría loguearse
+        // para dar de alta el primero. Credenciales por Seed__AdminEmail/Seed__AdminPassword.
+        var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+        await seeder.SeedAsync(app.Environment.IsDevelopment());
     }
 
     if (app.Environment.IsDevelopment())

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Papasur.Api.Contracts;
 using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
 using Papasur.Application.Items.Commands.CrearItem;
@@ -15,11 +16,12 @@ namespace Papasur.Api.Controllers;
 public class ItemsController : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<ItemDto>>> Listar(
-        [FromServices] IQueryHandler<ObtenerItemsQuery, IReadOnlyList<ItemDto>> handler,
+    public async Task<ActionResult<PagedResult<ItemDto>>> Listar(
+        [FromQuery] PageQuery page,
+        [FromServices] IQueryHandler<ObtenerItemsQuery, PagedResult<ItemDto>> handler,
         CancellationToken cancellationToken)
     {
-        var items = await handler.Handle(new ObtenerItemsQuery(), cancellationToken);
+        var items = await handler.Handle(new ObtenerItemsQuery(page.ToPageRequest()), cancellationToken);
         return Ok(items);
     }
 

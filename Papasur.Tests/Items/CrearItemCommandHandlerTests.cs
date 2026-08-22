@@ -1,3 +1,4 @@
+using Papasur.Application.Abstractions;
 using Papasur.Application.Items.Commands.CrearItem;
 using Papasur.Application.Items.Ports;
 using Papasur.Domain.Items;
@@ -16,8 +17,12 @@ public class CrearItemCommandHandlerTests
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<Item>> ListAsync(CancellationToken cancellationToken)
-            => Task.FromResult<IReadOnlyList<Item>>(Guardados);
+        public Task<PagedResult<Item>> ListAsync(PageRequest page, CancellationToken cancellationToken)
+            => Task.FromResult(new PagedResult<Item>(
+                Guardados.Skip(page.Skip).Take(page.PageSize).ToList(),
+                page.Page,
+                page.PageSize,
+                Guardados.Count));
     }
 
     [Fact]

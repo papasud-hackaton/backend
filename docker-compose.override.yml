@@ -15,6 +15,11 @@ services:
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__pg=${PG_CONN:-Host=papasur.db;Port=5432;Database=papasur;Username=postgres;Password=postgres;SSL Mode=Disable}
       - Ef__AutoMigrate=true
+      - Jwt__SymmetricKey=${Jwt__SymmetricKey:-}
+      - Jwt__ExpirationMinutes=${Jwt__ExpirationMinutes:-480}
+      - Seed__AdminEmail=${Seed__AdminEmail:-}
+      - Seed__AdminPassword=${Seed__AdminPassword:-}
+      - Seed__AdminEmployeeNumber=${Seed__AdminEmployeeNumber:-0001}
     ports:
       - "8080:8080"
     volumes:

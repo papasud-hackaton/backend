@@ -1,7 +1,8 @@
+using Microsoft.EntityFrameworkCore;
+using Papasur.Application.Abstractions;
 using Papasur.Application.Items.Ports;
 using Papasur.Domain.Items;
 using Papasur.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace Papasur.Infrastructure.Items;
 
@@ -16,11 +17,19 @@ public class EfItemRepository(AppDbContext db) : IItemRepository
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Item>> ListAsync(CancellationToken cancellationToken)
+    public async Task<PagedResult<Item>> ListAsync(PageRequest page, CancellationToken cancellationToken)
     {
-        return await db.Items
-            .AsNoTracking()
+        var query = db.Items.AsNoTracking();
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var items = await query
             .OrderByDescending(i => i.FechaRegistro)
+            .ThenBy(i => i.Id)
+            .Skip(page.Skip)
+            .Take(page.PageSize)
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<Item>(items, page.Page, page.PageSize, total);
     }
 }

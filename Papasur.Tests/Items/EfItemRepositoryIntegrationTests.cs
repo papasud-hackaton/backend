@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Papasur.Application.Abstractions;
 using Papasur.Domain.Items;
 using Papasur.Infrastructure.Items;
 using Papasur.Infrastructure.Persistence;
@@ -55,8 +56,9 @@ public sealed class EfItemRepositoryIntegrationTests : IAsyncLifetime
 
         await using (var db = CreateDbContext())
         {
-            var items = await new EfItemRepository(db).ListAsync(CancellationToken.None);
-            var guardado = Assert.Single(items);
+            var page = await new EfItemRepository(db).ListAsync(new PageRequest(1, 20), CancellationToken.None);
+            Assert.Equal(1, page.TotalCount);
+            var guardado = Assert.Single(page.Items);
             Assert.Equal(item.Id, guardado.Id);
             Assert.Equal("Integración", guardado.Nombre);
         }

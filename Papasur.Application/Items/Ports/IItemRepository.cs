@@ -1,3 +1,4 @@
+using Papasur.Application.Abstractions;
 using Papasur.Domain.Items;
 
 namespace Papasur.Application.Items.Ports;
@@ -9,5 +10,5 @@ public interface IItemRepository
 {
     Task AddAsync(Item item, CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<Item>> ListAsync(CancellationToken cancellationToken);
+    Task<PagedResult<Item>> ListAsync(PageRequest page, CancellationToken cancellationToken);
 }

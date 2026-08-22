@@ -21,6 +21,11 @@ services:
       - Jwt__SymmetricKey=${Jwt__SymmetricKey}
       - Jwt__Issuer=${Jwt__Issuer:-papasur}
       - Jwt__Audience=${Jwt__Audience:-papasur}
+      - Jwt__ExpirationMinutes=${Jwt__ExpirationMinutes:-480}
+      # Admin inicial: sólo se crea si la tabla de usuarios está vacía.
+      - Seed__AdminEmail=${Seed__AdminEmail:-}
+      - Seed__AdminPassword=${Seed__AdminPassword:-}
+      - Seed__AdminEmployeeNumber=${Seed__AdminEmployeeNumber:-0001}
       # CORS credencializado: orígenes del front y backoffice.
       - Cors__AllowedOrigins__0=${Cors__AllowedOrigins__0:-}
       - Cors__AllowedOrigins__1=${Cors__AllowedOrigins__1:-}
