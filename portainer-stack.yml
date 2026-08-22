@@ -3,7 +3,7 @@
 # así el YAML se puede versionar sin secrets adentro.
 #
 # Variables a cargar en Portainer:
-#   DOCKER_REGISTRY   2.24.86.109:5000
+#   DOCKER_REGISTRY   localhost:5000   (el registry corre en el mismo host que Portainer)
 #   API_IMAGE_TAG     test
 #   PG_CONN           Host=...;Port=5432;Database=papasud;Username=...;Password=...;SSL Mode=Require;Trust Server Certificate=true
 #   JWT_KEY           clave HS256 de 32+ bytes
@@ -13,7 +13,8 @@
 
 services:
   papasur-api:
-    image: "${DOCKER_REGISTRY}/papasur/api:${API_IMAGE_TAG:-test}"
+    # El registry corre en este mismo host, así que el daemon lo resuelve por localhost.
+    image: "${DOCKER_REGISTRY:-localhost:5000}/papasur/api:${API_IMAGE_TAG:-test}"
     container_name: papasur-api
     restart: unless-stopped
     environment:
