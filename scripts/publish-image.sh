@@ -11,7 +11,7 @@
 #   - accesible  -> docker push directo (rápido)
 #   - cerrado    -> manda la imagen por SSH y la pushea desde adentro del server
 #
-# SSH: si tu clave no es la default, pasala con SSH_KEY=~/.ssh/mi_clave, o dejá
+# SSH: sólo se usa si el registry NO es accesible. Si tu clave no es la default, pasala con SSH_KEY=~/.ssh/mi_clave, o dejá
 # configurado el host en ~/.ssh/config:
 #
 #   Host papasur-vps
@@ -31,7 +31,7 @@ if [[ -n "$SSH_KEY" ]]; then
   ssh_opts=(-i "$SSH_KEY")
 fi
 
-remote() { ssh "${ssh_opts[@]}" "$SSH_TARGET" "$@"; }
+remote() { ssh ${ssh_opts[@]+"${ssh_opts[@]}"} "$SSH_TARGET" "$@"; }
 TAG="${1:-test}"
 
 REGISTRY="${REGISTRY_HOST}:${REGISTRY_PORT}"
@@ -44,8 +44,13 @@ echo "==> Build ${IMAGE} (linux/amd64, target final)"
 DOCKER_REGISTRY="$REGISTRY" API_IMAGE_TAG="$TAG" \
   docker compose -f docker-compose.yml build
 
+registry_up=0
 if curl -sf -m 5 "http://${REGISTRY}/v2/" >/dev/null 2>&1; then
-  echo "==> Registry accesible: push directo"
+  registry_up=1
+fi
+
+if [[ "$registry_up" -eq 1 ]]; then
+  echo "==> Registry accesible: push directo (no hace falta SSH)"
   echo "    (si falla por TLS, agregá \"${REGISTRY}\" a insecure-registries en Docker)"
   DOCKER_REGISTRY="$REGISTRY" API_IMAGE_TAG="$TAG" \
     docker compose -f docker-compose.yml push
@@ -61,6 +66,10 @@ else
 fi
 
 echo "==> Listo. Tags publicados:"
-remote "curl -s localhost:${REGISTRY_PORT}/v2/papasur/api/tags/list"
+if [[ "$registry_up" -eq 1 ]]; then
+  curl -s "http://${REGISTRY}/v2/papasur/api/tags/list"
+else
+  remote "curl -s localhost:${REGISTRY_PORT}/v2/papasur/api/tags/list"
+fi
 echo
 echo "En Portainer: Stacks -> papasur -> Update the stack -> marcar 'Re-pull image'."
