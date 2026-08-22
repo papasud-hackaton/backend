@@ -31,7 +31,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Gate de tests: se ejecutan ANTES de buildear/pushear; si fallan, el pipeline se detiene.
       - name: Setup .NET
