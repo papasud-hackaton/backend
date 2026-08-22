@@ -11,15 +11,29 @@ public sealed record PageRequest
 
     public const int MaxPageSize = 100;
 
+    /// <summary>
+    /// Tope ampliado para el índice de lotes. El front pide pageSize=500 UNA vez y lo cachea
+    /// (contrato §3), porque de ahí salen los saldos que alimentan las advertencias en vivo.
+    /// Son ~150 lotes: entra en una página sin castigar a nadie.
+    /// </summary>
+    public const int CatalogPageSize = 500;
+
     public PageRequest()
     {
     }
 
-    public PageRequest(int page, int pageSize)
+    public PageRequest(int page, int pageSize) : this(page, pageSize, MaxPageSize)
     {
+    }
+
+    public PageRequest(int page, int pageSize, int maxPageSize)
+    {
+        _maxPageSize = maxPageSize < 1 ? MaxPageSize : maxPageSize;
         Page = page;
         PageSize = pageSize;
     }
+
+    private readonly int _maxPageSize = MaxPageSize;
 
     private readonly int _page = 1;
 
@@ -34,12 +48,7 @@ public sealed record PageRequest
     public int PageSize
     {
         get => _pageSize;
-        init => _pageSize = value switch
-        {
-            < 1 => DefaultPageSize,
-            > MaxPageSize => MaxPageSize,
-            _ => value,
-        };
+        init => _pageSize = value < 1 ? DefaultPageSize : Math.Min(value, _maxPageSize);
     }
 
     public int Skip => (Page - 1) * PageSize;

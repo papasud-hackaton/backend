@@ -24,11 +24,39 @@ public class CampoPlantilla
 
     public bool Obligatorio { get; set; }
 
-    /// <summary>Regla de mapeo hacia la trazabilidad (ej. "movimiento.dtv"); null = sólo manual/dictado.</summary>
+    /// <summary>
+    /// Regla de mapeo: de dónde sale el valor por inferencia. Para las plantillas de ámbito lote son
+    /// rutas de trazabilidad ("movimiento.dtv"); para las de ámbito formulario son las rutas del
+    /// contrato §4 ("items[].traceability.variety", "customer.name"). null = sólo manual/dictado.
+    /// </summary>
     public string? ReglaMapeo { get; set; }
+
+    /// <summary>De qué entidad se autocompleta (contrato §4): lot, customer, form, organization, manual.</summary>
+    public string Origen { get; set; } = OrigenesCampo.Manual;
+
+    /// <summary>Ayuda para quien complete el campo a mano.</summary>
+    public string? Ayuda { get; set; }
 
     /// <summary>Orden de aparición en el formulario de revisión.</summary>
     public int Orden { get; set; }
+}
+
+/// <summary>Origen declarado de un campo (contrato §4, FieldSource del front).</summary>
+public static class OrigenesCampo
+{
+    public const string Lot = "lot";
+
+    public const string Customer = "customer";
+
+    public const string Form = "form";
+
+    public const string Organization = "organization";
+
+    public const string Manual = "manual";
+
+    public static readonly string[] All = [Lot, Customer, Form, Organization, Manual];
+
+    public static bool Exists(string origen) => All.Contains(origen);
 }
 
 /// <summary>Tipos de dato soportados por un campo (string estable).</summary>

@@ -161,12 +161,20 @@ try
         var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
         await seeder.SeedAsync(app.Environment.IsDevelopment());
 
-        // Datos de trazabilidad de DEMO (lotes/movimientos + plantilla de proforma), sólo en Development
-        // y sólo si no hay lotes. Deja el copiloto listo para probarse end-to-end.
+        // Requisitos documentales (contrato §4) como DATO. No es de demo: sin plantillas no hay
+        // documentación que generar. Idempotente y en todos los entornos.
+        var requisitosSeeder = scope.ServiceProvider.GetRequiredService<RequisitosSeeder>();
+        await requisitosSeeder.SeedAsync();
+
+        // Datos de trazabilidad de DEMO (lotes/movimientos + plantilla de proforma) y las tres
+        // cuentas que el front ofrece en el login. Sólo en Development.
         if (app.Environment.IsDevelopment())
         {
             var trazabilidadSeeder = scope.ServiceProvider.GetRequiredService<TrazabilidadSeeder>();
             await trazabilidadSeeder.SeedAsync();
+
+            var demoUsersSeeder = scope.ServiceProvider.GetRequiredService<DemoUsersSeeder>();
+            await demoUsersSeeder.SeedAsync(app.Environment.IsDevelopment());
         }
     }
     else

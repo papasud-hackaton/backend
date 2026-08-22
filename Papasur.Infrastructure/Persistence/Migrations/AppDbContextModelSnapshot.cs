@@ -108,6 +108,11 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Ayuda")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("ayuda");
+
                     b.Property<string>("Clave")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -127,6 +132,12 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                     b.Property<int>("Orden")
                         .HasColumnType("integer")
                         .HasColumnName("orden");
+
+                    b.Property<string>("Origen")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("origen");
 
                     b.Property<Guid>("PlantillaDocumentoId")
                         .HasColumnType("uuid")
@@ -172,7 +183,11 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by_user_id");
 
-                    b.Property<Guid>("LoteId")
+                    b.Property<Guid?>("ExportFormId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("export_form_id");
+
+                    b.Property<Guid?>("LoteId")
                         .HasColumnType("uuid")
                         .HasColumnName("lote_id");
 
@@ -197,6 +212,9 @@ namespace Papasur.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedByUserId")
                         .HasDatabaseName("ix_documento_exportacion_created_by_user_id");
+
+                    b.HasIndex("ExportFormId")
+                        .HasDatabaseName("ix_documento_exportacion_export_form_id");
 
                     b.HasIndex("LoteId")
                         .HasDatabaseName("ix_documento_exportacion_lote_id");
@@ -223,6 +241,18 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                     b.Property<bool>("Activa")
                         .HasColumnType("boolean")
                         .HasColumnName("activa");
+
+                    b.Property<string>("Ambito")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("ambito");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("codigo");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -259,6 +289,9 @@ namespace Papasur.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Tipo")
                         .HasDatabaseName("ix_plantilla_documento_tipo");
+
+                    b.HasIndex("Ambito", "Codigo")
+                        .HasDatabaseName("ix_plantilla_documento_ambito_codigo");
 
                     b.HasIndex("Nombre", "Version")
                         .IsUnique()
@@ -313,6 +346,235 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_valor_campo_documento_exportacion_id_campo_plantilla_id");
 
                     b.ToTable("valor_campo", (string)null);
+                });
+
+            modelBuilder.Entity("Papasur.Domain.ExportForms.ExportForm", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasColumnName("currency");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("customer_id");
+
+                    b.Property<string>("DestinationCountryCode")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("destination_country_code");
+
+                    b.Property<string>("Incoterm")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("incoterm");
+
+                    b.Property<DateTime?>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("PaymentTerms")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("payment_terms");
+
+                    b.Property<string>("PortOfDischarge")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("port_of_discharge");
+
+                    b.Property<string>("PortOfLoading")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("port_of_loading");
+
+                    b.Property<string>("RequirementValues")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("requirement_values");
+
+                    b.Property<string>("ReviewNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("review_notes");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reviewed_at");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reviewed_by_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<DateTime?>("ValidUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("valid_until");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_export_form");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_export_form_code");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_export_form_created_at");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_export_form_created_by_user_id");
+
+                    b.HasIndex("CustomerId")
+                        .HasDatabaseName("ix_export_form_customer_id");
+
+                    b.HasIndex("ReviewedByUserId")
+                        .HasDatabaseName("ix_export_form_reviewed_by_user_id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_export_form_status");
+
+                    b.ToTable("export_form", (string)null);
+                });
+
+            modelBuilder.Entity("Papasur.Domain.ExportForms.ExportFormItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ExportFormId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("export_form_id");
+
+                    b.Property<decimal>("LineTotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("line_total");
+
+                    b.Property<Guid>("LotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lot_id");
+
+                    b.Property<int>("PackagesCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("packages_count");
+
+                    b.Property<string>("PackagingType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("packaging_type");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<decimal>("QuantityKg")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)")
+                        .HasColumnName("quantity_kg");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("unit_price");
+
+                    b.HasKey("Id")
+                        .HasName("pk_export_form_item");
+
+                    b.HasIndex("ExportFormId")
+                        .HasDatabaseName("ix_export_form_item_export_form_id");
+
+                    b.HasIndex("LotId")
+                        .HasDatabaseName("ix_export_form_item_lot_id");
+
+                    b.ToTable("export_form_item", (string)null);
+                });
+
+            modelBuilder.Entity("Papasur.Domain.Inventory.StorageLocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("name");
+
+                    b.Property<decimal?>("TemperatureC")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("temperature_c");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_storage_location");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_storage_location_code");
+
+                    b.ToTable("storage_location", (string)null);
                 });
 
             modelBuilder.Entity("Papasur.Domain.Items.Item", b =>
@@ -442,6 +704,41 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<string>("Address")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("address");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("city");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("contact_email");
+
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("contact_name");
+
+                    b.Property<string>("CountryCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)")
+                        .HasColumnName("country_code");
+
+                    b.Property<string>("DefaultIncoterm")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("default_incoterm");
+
+                    b.Property<string>("DefaultPortOfDischarge")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("default_port_of_discharge");
+
                     b.Property<string>("Nombre")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -452,6 +749,11 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("pais");
+
+                    b.Property<string>("TaxId")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("tax_id");
 
                     b.HasKey("Id")
                         .HasName("pk_cliente");
@@ -468,6 +770,10 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<int?>("Campania")
+                        .HasColumnType("integer")
+                        .HasColumnName("campania");
 
                     b.Property<Guid?>("CampoId")
                         .HasColumnType("uuid")
@@ -488,10 +794,48 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<bool>("EnCuarentena")
+                        .HasColumnType("boolean")
+                        .HasColumnName("en_cuarentena");
+
+                    b.Property<decimal?>("Humedad")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("humedad");
+
+                    b.Property<decimal?>("PoderGerminativo")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("poder_germinativo");
+
+                    b.Property<string>("Posicion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("posicion");
+
+                    b.Property<decimal?>("Pureza")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("pureza");
+
+                    b.Property<string>("RegistroInase")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("registro_inase");
+
+                    b.Property<Guid?>("StorageLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("storage_location_id");
+
                     b.Property<decimal?>("SuperficieHa")
                         .HasPrecision(10, 3)
                         .HasColumnType("numeric(10,3)")
                         .HasColumnName("superficie_ha");
+
+                    b.Property<string>("Tratamiento")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("tratamiento");
 
                     b.Property<Guid>("VariedadId")
                         .HasColumnType("uuid")
@@ -505,6 +849,9 @@ namespace Papasur.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Codigo")
                         .HasDatabaseName("ix_lote_codigo");
+
+                    b.HasIndex("StorageLocationId")
+                        .HasDatabaseName("ix_lote_storage_location_id");
 
                     b.HasIndex("VariedadId")
                         .HasDatabaseName("ix_lote_variedad_id");
@@ -871,11 +1218,16 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_documento_exportacion_user_created_by_user_id");
 
+                    b.HasOne("Papasur.Domain.ExportForms.ExportForm", "ExportForm")
+                        .WithMany("Documents")
+                        .HasForeignKey("ExportFormId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_documento_exportacion_export_forms_export_form_id");
+
                     b.HasOne("Papasur.Domain.Trazabilidad.Lote", "Lote")
                         .WithMany()
                         .HasForeignKey("LoteId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_documento_exportacion_lote_lote_id");
 
                     b.HasOne("Papasur.Domain.Trazabilidad.Movimiento", "Movimiento")
@@ -899,6 +1251,8 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_documento_exportacion_status_status_id");
 
                     b.Navigation("CreatedByUser");
+
+                    b.Navigation("ExportForm");
 
                     b.Navigation("Lote");
 
@@ -930,6 +1284,126 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                     b.Navigation("DocumentoExportacion");
                 });
 
+            modelBuilder.Entity("Papasur.Domain.ExportForms.ExportForm", b =>
+                {
+                    b.HasOne("Papasur.Domain.Users.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_export_form_user_created_by_user_id");
+
+                    b.HasOne("Papasur.Domain.Trazabilidad.Cliente", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_export_form_cliente_customer_id");
+
+                    b.HasOne("Papasur.Domain.Users.User", "ReviewedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_export_form_user_reviewed_by_user_id");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("ReviewedByUser");
+                });
+
+            modelBuilder.Entity("Papasur.Domain.ExportForms.ExportFormItem", b =>
+                {
+                    b.HasOne("Papasur.Domain.ExportForms.ExportForm", "ExportForm")
+                        .WithMany("Items")
+                        .HasForeignKey("ExportFormId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_export_form_item_export_form_export_form_id");
+
+                    b.HasOne("Papasur.Domain.Trazabilidad.Lote", "Lot")
+                        .WithMany()
+                        .HasForeignKey("LotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_export_form_item_lote_lot_id");
+
+                    b.OwnsOne("Papasur.Domain.ExportForms.TraceabilitySnapshot", "Traceability", b1 =>
+                        {
+                            b1.Property<Guid>("ExportFormItemId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("id");
+
+                            b1.Property<DateTime>("CapturedAt")
+                                .HasColumnType("timestamp with time zone")
+                                .HasColumnName("traceability_captured_at");
+
+                            b1.Property<string>("Category")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("traceability_category");
+
+                            b1.Property<int>("CropYear")
+                                .HasColumnType("integer")
+                                .HasColumnName("traceability_crop_year");
+
+                            b1.Property<decimal?>("GerminationRate")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("numeric(5,2)")
+                                .HasColumnName("traceability_germination_rate");
+
+                            b1.Property<string>("InaseRegistration")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("traceability_inase_registration");
+
+                            b1.Property<string>("LocationCode")
+                                .IsRequired()
+                                .HasMaxLength(20)
+                                .HasColumnType("character varying(20)")
+                                .HasColumnName("traceability_location_code");
+
+                            b1.Property<string>("LotCode")
+                                .IsRequired()
+                                .HasMaxLength(50)
+                                .HasColumnType("character varying(50)")
+                                .HasColumnName("traceability_lot_code");
+
+                            b1.Property<decimal?>("Purity")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("numeric(5,2)")
+                                .HasColumnName("traceability_purity");
+
+                            b1.Property<string>("Species")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("traceability_species");
+
+                            b1.Property<string>("Variety")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("traceability_variety");
+
+                            b1.HasKey("ExportFormItemId");
+
+                            b1.ToTable("export_form_item");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ExportFormItemId")
+                                .HasConstraintName("fk_export_form_item_export_form_item_id");
+                        });
+
+                    b.Navigation("ExportForm");
+
+                    b.Navigation("Lot");
+
+                    b.Navigation("Traceability")
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Papasur.Domain.Trazabilidad.Lote", b =>
                 {
                     b.HasOne("Papasur.Domain.Trazabilidad.Campo", "Campo")
@@ -937,6 +1411,12 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CampoId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_lote_campo_campo_id");
+
+                    b.HasOne("Papasur.Domain.Inventory.StorageLocation", "StorageLocation")
+                        .WithMany("Lotes")
+                        .HasForeignKey("StorageLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_lote_storage_locations_storage_location_id");
 
                     b.HasOne("Papasur.Domain.Trazabilidad.Variedad", "Variedad")
                         .WithMany("Lotes")
@@ -946,6 +1426,8 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_lote_variedad_variedad_id");
 
                     b.Navigation("Campo");
+
+                    b.Navigation("StorageLocation");
 
                     b.Navigation("Variedad");
                 });
@@ -1010,6 +1492,18 @@ namespace Papasur.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Papasur.Domain.Documentos.PlantillaDocumento", b =>
                 {
                     b.Navigation("Campos");
+                });
+
+            modelBuilder.Entity("Papasur.Domain.ExportForms.ExportForm", b =>
+                {
+                    b.Navigation("Documents");
+
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Papasur.Domain.Inventory.StorageLocation", b =>
+                {
+                    b.Navigation("Lotes");
                 });
 
             modelBuilder.Entity("Papasur.Domain.Trazabilidad.Campo", b =>

@@ -3,7 +3,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Papasur.Application.Audit.Ports;
 using Papasur.Application.Auth.Ports;
+using Papasur.Application.Customers.Ports;
 using Papasur.Application.Documentos.Ports;
+using Papasur.Application.ExportForms.Ports;
+using Papasur.Application.Locations.Ports;
+using Papasur.Application.Lots.Ports;
 using Papasur.Application.Items.Ports;
 using Papasur.Application.Metrics.Ports;
 using Papasur.Application.Roles.Ports;
@@ -12,7 +16,11 @@ using Papasur.Application.Trazabilidad.Ports;
 using Papasur.Application.Users.Ports;
 using Papasur.Infrastructure.Audit;
 using Papasur.Infrastructure.Auth;
+using Papasur.Infrastructure.Customers;
 using Papasur.Infrastructure.Documentos;
+using Papasur.Infrastructure.ExportForms;
+using Papasur.Infrastructure.Locations;
+using Papasur.Infrastructure.Lots;
 using Papasur.Infrastructure.Items;
 using Papasur.Infrastructure.Metrics;
 using Papasur.Infrastructure.Persistence;
@@ -60,6 +68,10 @@ public static class DependencyInjection
         services.AddScoped<IRoleRepository, EfRoleRepository>();
         services.AddScoped<IStatusRepository, EfStatusRepository>();
         services.AddScoped<IAuditRepository, EfAuditRepository>();
+        services.AddScoped<ILotProjectionRepository, EfLotProjectionRepository>();
+        services.AddScoped<ICustomerRepository, EfCustomerRepository>();
+        services.AddScoped<IStorageLocationRepository, EfStorageLocationRepository>();
+        services.AddScoped<IExportFormRepository, EfExportFormRepository>();
 
         // Servicios de autenticación
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
@@ -75,6 +87,8 @@ public static class DependencyInjection
 
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped<TrazabilidadSeeder>();
+        services.AddScoped<RequisitosSeeder>();
+        services.AddScoped<DemoUsersSeeder>();
 
         return services;
     }

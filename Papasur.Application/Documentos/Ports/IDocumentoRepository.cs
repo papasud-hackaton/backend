@@ -13,4 +13,13 @@ public interface IDocumentoRepository
     Task<DocumentoExportacion?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 
     Task UpdateAsync(DocumentoExportacion documento, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reemplaza los documentos de un formulario: regenerar rehace el juego completo, no acumula
+    /// versiones sueltas que después nadie sabe cuál es la buena.
+    /// </summary>
+    Task ReplaceForFormAsync(
+        Guid exportFormId,
+        IReadOnlyList<DocumentoExportacion> documentos,
+        CancellationToken cancellationToken);
 }

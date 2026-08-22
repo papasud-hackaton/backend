@@ -6,7 +6,7 @@ namespace Papasur.Application.Documentos.Queries.ObtenerDocumento;
 /// </summary>
 public sealed record DocumentoExportacionDto(
     Guid Id,
-    Guid LoteId,
+    Guid? LoteId,
     string LoteCodigo,
     string Variedad,
     Guid? MovimientoId,

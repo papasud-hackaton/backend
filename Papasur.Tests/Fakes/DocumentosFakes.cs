@@ -64,6 +64,12 @@ public sealed class FakePlantillaRepository : IPlantillaRepository
 
     public Task<PlantillaDocumento?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
         => Task.FromResult(Plantillas.FirstOrDefault(p => p.Id == id));
+
+    public Task<IReadOnlyList<PlantillaDocumento>> ListByAmbitoAsync(
+        string ambito,
+        CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyList<PlantillaDocumento>>(
+            [.. Plantillas.Where(p => p.Activa && p.Ambito == ambito).OrderBy(p => p.Nombre)]);
 }
 
 public sealed class FakeDocumentoRepository : IDocumentoRepository
@@ -84,6 +90,17 @@ public sealed class FakeDocumentoRepository : IDocumentoRepository
     public Task UpdateAsync(DocumentoExportacion documento, CancellationToken cancellationToken)
     {
         Updates++;
+        return Task.CompletedTask;
+    }
+
+    public Task ReplaceForFormAsync(
+        Guid exportFormId,
+        IReadOnlyList<DocumentoExportacion> documentos,
+        CancellationToken cancellationToken)
+    {
+        Documentos.RemoveAll(d => d.ExportFormId == exportFormId);
+        Documentos.AddRange(documentos);
+
         return Task.CompletedTask;
     }
 }

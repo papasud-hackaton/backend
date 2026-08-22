@@ -40,4 +40,14 @@ public class EfPlantillaRepository(AppDbContext db) : IPlantillaRepository
             .AsNoTracking()
             .Include(p => p.Campos)
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<PlantillaDocumento>> ListByAmbitoAsync(
+        string ambito,
+        CancellationToken cancellationToken)
+        => await db.PlantillasDocumento
+            .AsNoTracking()
+            .Include(p => p.Campos)
+            .Where(p => p.Activa && p.Ambito == ambito)
+            .OrderBy(p => p.Nombre)
+            .ToListAsync(cancellationToken);
 }

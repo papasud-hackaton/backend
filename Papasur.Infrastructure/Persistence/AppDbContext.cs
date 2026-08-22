@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Papasur.Domain.Audit;
 using Papasur.Domain.Documentos;
+using Papasur.Domain.ExportForms;
+using Papasur.Domain.Inventory;
 using Papasur.Domain.Items;
 using Papasur.Domain.Statuses;
 using Papasur.Domain.Trazabilidad;
@@ -48,6 +50,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<DocumentoExportacion> DocumentosExportacion => Set<DocumentoExportacion>();
 
     public DbSet<ValorCampo> ValoresCampo => Set<ValorCampo>();
+
+    // Formularios de exportación (el envío completo: contrato §5).
+    public DbSet<ExportForm> ExportForms => Set<ExportForm>();
+
+    public DbSet<ExportFormItem> ExportFormItems => Set<ExportFormItem>();
+
+    public DbSet<StorageLocation> StorageLocations => Set<StorageLocation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -198,6 +207,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(c => c.Nombre).HasMaxLength(150).IsRequired();
             entity.Property(c => c.Pais).HasMaxLength(100);
             entity.HasIndex(c => c.Nombre);
+            entity.Property(c => c.TaxId).HasMaxLength(50);
+            entity.Property(c => c.CountryCode).HasMaxLength(2);
+            entity.Property(c => c.Address).HasMaxLength(300);
+            entity.Property(c => c.City).HasMaxLength(150);
+            entity.Property(c => c.ContactName).HasMaxLength(150);
+            entity.Property(c => c.ContactEmail).HasMaxLength(200);
+            entity.Property(c => c.DefaultIncoterm).HasMaxLength(10);
+            entity.Property(c => c.DefaultPortOfDischarge).HasMaxLength(150);
         });
 
         modelBuilder.Entity<Lote>(entity =>
@@ -214,9 +231,21 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .HasForeignKey(l => l.VariedadId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            entity.Property(l => l.Posicion).HasMaxLength(50);
+            entity.Property(l => l.PoderGerminativo).HasPrecision(5, 2);
+            entity.Property(l => l.Pureza).HasPrecision(5, 2);
+            entity.Property(l => l.Humedad).HasPrecision(5, 2);
+            entity.Property(l => l.Tratamiento).HasMaxLength(200);
+            entity.Property(l => l.RegistroInase).HasMaxLength(100);
+
             entity.HasOne(l => l.Campo)
                 .WithMany(c => c.Lotes)
                 .HasForeignKey(l => l.CampoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(l => l.StorageLocation)
+                .WithMany(s => s.Lotes)
+                .HasForeignKey(l => l.StorageLocationId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -266,8 +295,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(p => p.Tipo).HasMaxLength(50).IsRequired();
             entity.Property(p => p.Organismo).HasMaxLength(150);
             entity.Property(p => p.PaisDestino).HasMaxLength(100);
+            entity.Property(p => p.Codigo).HasMaxLength(60).IsRequired();
+            entity.Property(p => p.Ambito).HasMaxLength(20).IsRequired();
             entity.HasIndex(p => new { p.Nombre, p.Version }).IsUnique();
             entity.HasIndex(p => p.Tipo);
+            entity.HasIndex(p => new { p.Ambito, p.Codigo });
         });
 
         modelBuilder.Entity<CampoPlantilla>(entity =>
@@ -278,6 +310,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.Property(c => c.Etiqueta).HasMaxLength(200).IsRequired();
             entity.Property(c => c.TipoDato).HasMaxLength(30).IsRequired();
             entity.Property(c => c.ReglaMapeo).HasMaxLength(300);
+            entity.Property(c => c.Origen).HasMaxLength(20).IsRequired();
+            entity.Property(c => c.Ayuda).HasMaxLength(300);
             entity.HasIndex(c => new { c.PlantillaDocumentoId, c.Clave }).IsUnique();
 
             entity.HasOne(c => c.PlantillaDocumento)
@@ -293,10 +327,18 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(d => d.LoteId);
             entity.HasIndex(d => d.StatusId);
 
+            entity.HasIndex(d => d.ExportFormId);
+
             entity.HasOne(d => d.Lote)
                 .WithMany()
                 .HasForeignKey(d => d.LoteId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Los documentos de un envío caen con el envío: sin formulario no significan nada.
+            entity.HasOne(d => d.ExportForm)
+                .WithMany(f => f.Documents)
+                .HasForeignKey(d => d.ExportFormId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(d => d.Movimiento)
                 .WithMany(m => m.Documentos)
@@ -338,6 +380,98 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany()
                 .HasForeignKey(v => v.CampoPlantillaId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ---------- Ubicaciones de stock ----------
+
+        modelBuilder.Entity<StorageLocation>(entity =>
+        {
+            entity.ToTable("storage_location");
+            entity.HasKey(l => l.Id);
+            entity.Property(l => l.Code).HasMaxLength(20).IsRequired();
+            entity.Property(l => l.Name).HasMaxLength(150).IsRequired();
+            entity.Property(l => l.Type).HasMaxLength(20).IsRequired();
+            entity.Property(l => l.TemperatureC).HasPrecision(5, 2);
+            entity.HasIndex(l => l.Code).IsUnique();
+        });
+
+        // ---------- Formularios de exportación ----------
+
+        modelBuilder.Entity<ExportForm>(entity =>
+        {
+            entity.ToTable("export_form");
+            entity.HasKey(f => f.Id);
+            entity.Property(f => f.Code).HasMaxLength(30).IsRequired();
+            entity.Property(f => f.Status).HasMaxLength(30).IsRequired();
+            entity.Property(f => f.DestinationCountryCode).HasMaxLength(2);
+            entity.Property(f => f.PortOfLoading).HasMaxLength(150);
+            entity.Property(f => f.PortOfDischarge).HasMaxLength(150);
+            entity.Property(f => f.Incoterm).HasMaxLength(10).IsRequired();
+            entity.Property(f => f.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(f => f.PaymentTerms).HasMaxLength(300);
+            entity.Property(f => f.Notes).HasMaxLength(2000);
+            entity.Property(f => f.ReviewNotes).HasMaxLength(2000);
+            // Los valores de requisitos son un diccionario abierto: jsonb, no una tabla por campo.
+            entity.Property(f => f.RequirementValues).HasColumnType("jsonb");
+
+            entity.HasIndex(f => f.Code).IsUnique();
+            entity.HasIndex(f => f.Status);
+            entity.HasIndex(f => f.CreatedByUserId);
+            entity.HasIndex(f => f.CreatedAt);
+
+            entity.HasOne(f => f.Customer)
+                .WithMany()
+                .HasForeignKey(f => f.CustomerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Restrict: un usuario con formularios no se borra (por eso se desactiva, no se elimina).
+            entity.HasOne(f => f.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(f => f.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(f => f.ReviewedByUser)
+                .WithMany()
+                .HasForeignKey(f => f.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ExportFormItem>(entity =>
+        {
+            entity.ToTable("export_form_item");
+            entity.HasKey(i => i.Id);
+            entity.Property(i => i.QuantityKg).HasPrecision(18, 3);
+            entity.Property(i => i.UnitPrice).HasPrecision(18, 4);
+            entity.Property(i => i.LineTotal).HasPrecision(18, 2);
+            entity.Property(i => i.PackagingType).HasMaxLength(20).IsRequired();
+            entity.HasIndex(i => i.ExportFormId);
+            entity.HasIndex(i => i.LotId);
+
+            // La línea no existe sin su formulario.
+            entity.HasOne(i => i.ExportForm)
+                .WithMany(f => f.Items)
+                .HasForeignKey(i => i.ExportFormId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(i => i.Lot)
+                .WithMany()
+                .HasForeignKey(i => i.LotId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // La trazabilidad congelada son columnas de la misma fila: no tiene vida propia.
+            entity.OwnsOne(i => i.Traceability, snapshot =>
+            {
+                snapshot.Property(t => t.LotCode).HasColumnName("traceability_lot_code").HasMaxLength(50);
+                snapshot.Property(t => t.Species).HasColumnName("traceability_species").HasMaxLength(100);
+                snapshot.Property(t => t.Variety).HasColumnName("traceability_variety").HasMaxLength(100);
+                snapshot.Property(t => t.Category).HasColumnName("traceability_category").HasMaxLength(100);
+                snapshot.Property(t => t.CropYear).HasColumnName("traceability_crop_year");
+                snapshot.Property(t => t.LocationCode).HasColumnName("traceability_location_code").HasMaxLength(20);
+                snapshot.Property(t => t.GerminationRate).HasColumnName("traceability_germination_rate").HasPrecision(5, 2);
+                snapshot.Property(t => t.Purity).HasColumnName("traceability_purity").HasPrecision(5, 2);
+                snapshot.Property(t => t.InaseRegistration).HasColumnName("traceability_inase_registration").HasMaxLength(100);
+                snapshot.Property(t => t.CapturedAt).HasColumnName("traceability_captured_at");
+            });
         });
     }
 }

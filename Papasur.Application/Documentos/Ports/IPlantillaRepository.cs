@@ -13,4 +13,10 @@ public interface IPlantillaRepository
 
     /// <summary>Trae la plantilla con sus campos (CampoPlantilla) cargados y ordenados.</summary>
     Task<PlantillaDocumento?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Plantillas activas de un ámbito, con sus campos ordenados. Sin paginar: son los requisitos
+    /// documentales completos, y el contrato §4 los devuelve como array.
+    /// </summary>
+    Task<IReadOnlyList<PlantillaDocumento>> ListByAmbitoAsync(string ambito, CancellationToken cancellationToken);
 }

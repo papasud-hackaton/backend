@@ -13,6 +13,22 @@ using Papasur.Application.Documentos.Commands.GenerarBorrador;
 using Papasur.Application.Documentos.Inference;
 using Papasur.Application.Documentos.Queries.ObtenerDocumento;
 using Papasur.Application.Documentos.Queries.ObtenerPlantillas;
+using Papasur.Application.Customers.Commands.CreateCustomer;
+using Papasur.Application.Customers.Queries.GetCustomers;
+using Papasur.Application.DocumentTypes.Queries.GetDocumentTypes;
+using Papasur.Application.ExportForms;
+using Papasur.Application.ExportForms.Commands;
+using Papasur.Application.ExportForms.Commands.CreateForm;
+using Papasur.Application.ExportForms.Commands.GenerateFormDocuments;
+using Papasur.Application.ExportForms.Commands.TransitionForm;
+using Papasur.Application.ExportForms.Commands.UpdateForm;
+using Papasur.Application.ExportForms.Inference;
+using Papasur.Application.ExportForms.Queries.GetFormById;
+using Papasur.Application.ExportForms.Queries.GetForms;
+using Papasur.Application.Locations.Queries.GetLocations;
+using Papasur.Application.Lots.Queries.GetLotById;
+using Papasur.Application.Lots.Queries.GetLots;
+using Papasur.Application.Metrics.Queries.GetOverview;
 using Papasur.Application.Items.Commands.CrearItem;
 using Papasur.Application.Items.Queries.ObtenerItems;
 using Papasur.Application.Metrics.Queries.GetMetrics;
@@ -90,6 +106,58 @@ public static class DependencyInjection
         services.AddScoped<
             ICommandHandler<ConfirmarDocumentoCommand, Result>,
             ConfirmarDocumentoCommandHandler>();
+
+        // Catálogo del contrato: ubicaciones, clientes y lotes en el shape que consume el front
+        services.AddScoped<
+            IQueryHandler<GetLocationsQuery, Result<IReadOnlyList<StorageLocationDto>>>,
+            GetLocationsQueryHandler>();
+        services.AddScoped<
+            IQueryHandler<GetCustomersQuery, Result<IReadOnlyList<CustomerDto>>>,
+            GetCustomersQueryHandler>();
+        services.AddScoped<
+            ICommandHandler<CreateCustomerCommand, Result<CustomerDto>>,
+            CreateCustomerCommandHandler>();
+        services.AddScoped<
+            IQueryHandler<GetLotsQuery, Result<PagedResult<SeedLotDto>>>,
+            GetLotsQueryHandler>();
+        services.AddScoped<
+            IQueryHandler<GetLotByIdQuery, Result<SeedLotDto>>,
+            GetLotByIdQueryHandler>();
+
+        // Requisitos documentales como dato (contrato §4)
+        services.AddScoped<
+            IQueryHandler<GetDocumentTypesQuery, Result<IReadOnlyList<DocumentTypeDto>>>,
+            GetDocumentTypesQueryHandler>();
+
+        // Formularios de exportación: el núcleo del contrato (§5)
+        services.AddScoped<FormAssembler>();
+        services.AddScoped<FormItemBuilder>();
+        // Datos del exportador: constantes hasta que exista GET /organization.
+        services.AddSingleton(OrganizationProfile.Default);
+        services.AddScoped<IFormInferenceEngine, FormPathInferenceEngine>();
+        services.AddScoped<
+            IQueryHandler<GetFormsQuery, Result<PagedResult<ExportFormSummaryDto>>>,
+            GetFormsQueryHandler>();
+        services.AddScoped<
+            IQueryHandler<GetFormByIdQuery, Result<ExportFormDto>>,
+            GetFormByIdQueryHandler>();
+        services.AddScoped<
+            ICommandHandler<CreateFormCommand, Result<ExportFormDto>>,
+            CreateFormCommandHandler>();
+        services.AddScoped<
+            ICommandHandler<UpdateFormCommand, Result<UpdateFormResult>>,
+            UpdateFormCommandHandler>();
+        services.AddScoped<
+            ICommandHandler<TransitionFormCommand, Result<ExportFormDto>>,
+            TransitionFormCommandHandler>();
+        services.AddScoped<
+            ICommandHandler<GenerateFormDocumentsCommand, Result<IReadOnlyList<GeneratedDocumentDto>>>,
+            GenerateFormDocumentsCommandHandler>();
+
+        // Métricas del tablero (contrato §7)
+        services.AddScoped<
+            IQueryHandler<GetOverviewQuery, Result<MetricsOverviewResult>>,
+            GetOverviewQueryHandler>();
 
         // Items (feature de ejemplo)
         services.AddScoped<ICommandHandler<CrearItemCommand, Result<Guid>>, CrearItemCommandHandler>();

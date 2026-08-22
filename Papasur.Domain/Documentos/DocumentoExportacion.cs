@@ -14,9 +14,18 @@ public class DocumentoExportacion
 {
     public Guid Id { get; set; }
 
-    public Guid LoteId { get; set; }
+    /// <summary>Lote de origen cuando el documento se genera sobre un lote suelto (copiloto).</summary>
+    public Guid? LoteId { get; set; }
 
-    public Lote Lote { get; set; } = null!;
+    public Lote? Lote { get; set; }
+
+    /// <summary>
+    /// Formulario de exportación cuando el documento pertenece a un envío completo (contrato §5).
+    /// Un documento tiene una cosa o la otra, nunca las dos.
+    /// </summary>
+    public Guid? ExportFormId { get; set; }
+
+    public ExportForms.ExportForm? ExportForm { get; set; }
 
     /// <summary>Movimiento / despacho concreto sobre el que se genera (aporta remito, kilos, DTV), si aplica.</summary>
     public Guid? MovimientoId { get; set; }
