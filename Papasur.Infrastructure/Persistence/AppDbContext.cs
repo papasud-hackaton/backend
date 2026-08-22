@@ -58,6 +58,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     public DbSet<StorageLocation> StorageLocations => Set<StorageLocation>();
 
+    public DbSet<Domain.Settings.OrganizationSettings> OrganizationSettings
+        => Set<Domain.Settings.OrganizationSettings>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -126,6 +129,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .WithMany(r => r.Users)
                 .HasForeignKey(u => u.RoleId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Domain.Settings.OrganizationSettings>(entity =>
+        {
+            entity.ToTable("organization_settings");
+            entity.HasKey(o => o.Id);
+            // Mapa clave/valor: agregar un campo del exportador no necesita migración.
+            entity.Property(o => o.ValuesJson).HasColumnType("jsonb").IsRequired();
         });
 
         modelBuilder.Entity<PasswordResetToken>(entity =>

@@ -9,6 +9,7 @@ using Papasur.Application.Auth.Commands.Login;
 using Papasur.Application.Auth.Commands.Logout;
 using Papasur.Application.Auth.Commands.ResetPassword;
 using Papasur.Application.Auth.Queries.GetCurrentUser;
+using Papasur.Application.Users.Commands.UpdateUser;
 using Papasur.Application.Users.Queries.GetUsers;
 
 namespace Papasur.Api.Controllers;
@@ -127,6 +128,37 @@ public class AuthController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Edición del perfil PROPIO. No incluye el rol a propósito: eso sólo lo cambia un admin
+    /// desde /users/{id}.
+    /// </summary>
+    [HttpPatch("profile")]
+    [Authorize]
+    public async Task<ActionResult<UserDto>> UpdateProfile(
+        [FromBody] UpdateProfileRequest request,
+        [FromServices] ICommandHandler<UpdateUserCommand, Result<UserDto>> handler,
+        CancellationToken cancellationToken)
+    {
+        if (CurrentUserId is not { } userId)
+        {
+            return Fail(StatusCodes.Status401Unauthorized, "Tu sesión no es válida.", "unauthenticated");
+        }
+
+        var result = await handler.Handle(
+            new UpdateUserCommand(userId)
+            {
+                FirstName = request.FirstName,
+                LastName = request.LastName,
+                Phone = request.Phone,
+                Actor = CurrentActor,
+            },
+            cancellationToken);
+
+        return result.IsFailure
+            ? Fail(StatusCodes.Status400BadRequest, result.Error)
+            : Ok(result.Value);
+    }
+
     /// <summary>Cambio de la contraseña propia (requiere la actual).</summary>
     [HttpPatch("password")]
     [Authorize]
@@ -152,3 +184,5 @@ public sealed record ForgotPasswordRequest(string Email);
 public sealed record ResetPasswordRequest(string Token, string Password);
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+
+public sealed record UpdateProfileRequest(string? FirstName, string? LastName, string? Phone);

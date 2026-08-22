@@ -76,14 +76,15 @@ public class EfExportFormRepository(AppDbContext db) : IExportFormRepository
             // Por el DbSet y no vaciando la colección: la trazabilidad congelada es un tipo de
             // propiedad en la misma tabla, y limpiar la navegación hace que EF intente borrar la
             // fila dos veces.
-            db.ExportFormItems.RemoveRange(form.Items);
+            db.ExportFormItems.RemoveRange([.. form.Items]);
             form.Items.Clear();
 
             foreach (var item in replacementItems)
             {
                 item.ExportFormId = form.Id;
+                // Sólo al DbSet: EF hace el fixup de la navegación. Agregarlo también a
+                // form.Items lo dejaría duplicado en la respuesta de esta misma llamada.
                 db.ExportFormItems.Add(item);
-                form.Items.Add(item);
             }
         }
 

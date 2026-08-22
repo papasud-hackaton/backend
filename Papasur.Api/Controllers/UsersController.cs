@@ -5,6 +5,7 @@ using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
 using Papasur.Application.Users.Commands.CreateUser;
 using Papasur.Application.Users.Commands.DeactivateUser;
+using Papasur.Application.Users.Commands.SetUserStatus;
 using Papasur.Application.Users.Commands.UpdateUser;
 using Papasur.Application.Users.Queries.GetUserById;
 using Papasur.Application.Users.Queries.GetUsers;
@@ -98,6 +99,29 @@ public class UsersController : ApiControllerBase
                 Role = request.Role,
                 Actor = CurrentActor,
             },
+            cancellationToken);
+
+        if (result.IsFailure)
+        {
+            var status = result.Error.Code == "User.NotFound"
+                ? StatusCodes.Status404NotFound
+                : StatusCodes.Status400BadRequest;
+
+            return Fail(status, result.Error);
+        }
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>Reactiva un usuario dado de baja.</summary>
+    [HttpPost("{id:guid}/activate")]
+    public async Task<ActionResult<UserDto>> Activate(
+        Guid id,
+        [FromServices] ICommandHandler<SetUserStatusCommand, Result<UserDto>> handler,
+        CancellationToken cancellationToken)
+    {
+        var result = await handler.Handle(
+            new SetUserStatusCommand(id, UserStatuses.Active) { Actor = CurrentActor },
             cancellationToken);
 
         if (result.IsFailure)

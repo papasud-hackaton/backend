@@ -36,8 +36,11 @@ using Papasur.Application.Roles.Queries.GetRoles;
 using Papasur.Application.Statuses.Queries.GetStatuses;
 using Papasur.Application.Trazabilidad.Queries.ObtenerLotePorId;
 using Papasur.Application.Trazabilidad.Queries.ObtenerLotes;
+using Papasur.Application.Settings.Commands.UpdateOrganization;
+using Papasur.Application.Settings.Queries.GetOrganization;
 using Papasur.Application.Users.Commands.CreateUser;
 using Papasur.Application.Users.Commands.DeactivateUser;
+using Papasur.Application.Users.Commands.SetUserStatus;
 using Papasur.Application.Users.Commands.UpdateUser;
 using Papasur.Application.Users.Queries.GetUserById;
 using Papasur.Application.Users.Queries.GetUsers;
@@ -64,8 +67,17 @@ public static class DependencyInjection
         services.AddScoped<ICommandHandler<CreateUserCommand, Result<UserDto>>, CreateUserCommandHandler>();
         services.AddScoped<ICommandHandler<UpdateUserCommand, Result<UserDto>>, UpdateUserCommandHandler>();
         services.AddScoped<ICommandHandler<DeactivateUserCommand, Result<UserDto>>, DeactivateUserCommandHandler>();
+        services.AddScoped<ICommandHandler<SetUserStatusCommand, Result<UserDto>>, SetUserStatusCommandHandler>();
         services.AddScoped<IQueryHandler<GetUsersQuery, PagedResult<UserDto>>, GetUsersQueryHandler>();
         services.AddScoped<IQueryHandler<GetUserByIdQuery, Result<UserDto>>, GetUserByIdQueryHandler>();
+
+        // Configuración del exportador
+        services.AddScoped<
+            IQueryHandler<GetOrganizationQuery, IReadOnlyDictionary<string, string>>,
+            GetOrganizationQueryHandler>();
+        services.AddScoped<
+            ICommandHandler<UpdateOrganizationCommand, Result<IReadOnlyDictionary<string, string>>>,
+            UpdateOrganizationCommandHandler>();
 
         // Roles (catálogo)
         services.AddScoped<IQueryHandler<GetRolesQuery, PagedResult<RoleDto>>, GetRolesQueryHandler>();
