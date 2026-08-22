@@ -141,7 +141,7 @@ dotnet ef migrations add <Name> --context AppDbContext \
 
 - **JWT** HS256. `Jwt__SymmetricKey` (>= 32 bytes) is mandatory outside
   Development; the app refuses to start without it. Endpoints declare their
-  allowed roles with `[AuthorizeRoles(...)]` (see section 9).
+  allowed roles with `[AuthorizeRoles(...)]` (see section 10).
 - **CORS** is fail-closed outside Development; origins come from
   `Cors__AllowedOrigins__0..N`.
 - Global per-IP **rate limiting**, `SecurityHeadersMiddleware`, and a `/health`
@@ -207,7 +207,68 @@ dotnet ef migrations add <Name> --context AppDbContext \
   `user_created`). Add a constant instead of a literal when you audit something
   new, and **never put sensitive data in `Detail`**.
 
-## 9. Authentication & authorization
+### Traceability (the core of the domain)
+
+- **`Lote`** (`lote`) — the unit everything hangs off: `Codigo`, `VariedadId`,
+  `CampoId`, `Categoria`, `SuperficieHa`.
+- **`Movimiento`** (`movimiento`) — a dispatch of a lot: remito, date, kilos,
+  bags, presentation, calibre, carrier, client, DTV, destination.
+- Catalogs: `Variedad`, `Campo` (farm/plot of origin), `Transportista`,
+  `Cliente`.
+- Traceability is **read-only through the API**: it is the source of truth that
+  documents project from, never the other way around.
+
+### Export documents
+
+- **`PlantillaDocumento`** (`plantilla_documento`) + **`CampoPlantilla`**
+  (`campo_plantilla`) — the documentary requirements, **as data**: one row per
+  field an agency demands, each with `Clave`, `Etiqueta`, `TipoDato`,
+  `Obligatorio`, `Orden` and — the key piece — **`ReglaMapeo`**.
+- **`DocumentoExportacion`** (`documento_exportacion`) — a document generated for
+  a lot: template + version, optional movement, `StatusId` (the shared status
+  catalog: `en_proceso` → `finalizado`), `CreatedByUserId`, `ConfirmedAt`.
+- **`ValorCampo`** (`valor_campo`) — one row per field, with `Valor`,
+  **`Origen`** (`Inferido` / `Manual` / `Dictado`), `Confirmado` and
+  `InferidoDesde`. Those last three are the audit trail of *how* each value got
+  there; never drop them when editing a value.
+
+## 9. The inference engine
+
+`IMotorInferencia` (Application port) turns a field's `ReglaMapeo` plus a lot and
+an optional movement into a suggested value. `MotorInferenciaReglas` is the
+deterministic implementation: `lote.codigo`, `movimiento.dtv`, … resolved
+against the traceability graph.
+
+Rules that hold, and that the tests pin down:
+
+- **Inference is assistive.** A pre-filled value is a suggestion with a
+  `Confirmado = false` flag. Nothing reaches an agency without a human pressing
+  confirm.
+- **No rule, or no data → the field stays empty with `Origen = Manual`.** Never
+  invent a value; leave it for the person (typed or dictated).
+- **Every inferred value carries `InferidoDesde`** with the rule that produced
+  it. Editing an inferred value flips it to `Manual`/`Dictado` and clears that
+  trace.
+- **Numbers and dates are formatted with `InvariantCulture`** — a document must
+  not depend on the server's regional settings.
+- It sits behind a port on purpose: an **LLM-backed engine** goes in
+  Infrastructure implementing the same interface, with no change to handlers or
+  controllers.
+
+### The document flow
+
+1. `GET /lotes` → pick the lot; `GET /lotes/{id}` brings its movements.
+2. `GET /documentos/plantillas` → pick the requirement.
+3. `POST /documentos/generar` → the engine pre-fills; a draft is persisted as
+   **en proceso** with one `valor_campo` per field.
+4. `GET /documentos/{id}` → review each field with its value and origin.
+5. `POST /documentos/{id}/confirmar` → human edits are applied, **required
+   fields are validated**, and the document becomes **finalizado**.
+
+Generation and confirmation are both audited (`document_generated`,
+`document_confirmed`).
+
+## 10. Authentication & authorization
 
 - **`POST /api/v1/auth/login`** (anonymous) takes email + password and returns
   the JWT, its expiry and the user's basic data.
@@ -247,7 +308,7 @@ provisioned by an admin:
 Password rules live in one place, `PasswordPolicy` (minimum 8 characters) —
 creation, reset and self-change all go through it.
 
-## 10. Pagination (mandatory)
+## 11. Pagination (mandatory)
 
 **Every list endpoint is paginated. No exceptions** — not even fixed catalogs
 like roles and statuses, so the contract stays uniform.
@@ -262,7 +323,7 @@ like roles and statuses, so the contract stays uniform.
   deterministic `OrderBy` plus a tie-breaker, so pages never overlap or skip
   rows. Count first, then fetch the page.
 
-## 11. Metrics
+## 12. Metrics
 
 Basic metrics are **generic and extensible** — nothing is hardcoded in the
 handler or controller:
@@ -277,7 +338,7 @@ handler or controller:
   register it in `DependencyInjection`.** Never touch the handler or the
   controller. `ItemMetricProvider` is the template to copy.
 
-## 12. Endpoints
+## 13. Endpoints
 
 | Endpoint | Roles | Notes |
 | --- | --- | --- |
@@ -293,10 +354,16 @@ handler or controller:
 | `GET /api/v1/statuses` | authenticated | Paginated catalog |
 | `GET /api/v1/audit` | admin, supervisor | Paginated, filters: `userId`, `action`, `entityType`, `entityId`, `from`, `to` |
 | `GET /api/v1/metrics` | admin, supervisor | Paginated, filters: `source`, `from`, `to` |
+| `GET /api/v1/lotes` | authenticated | Paginated, filters: `search`, `variedadId` |
+| `GET /api/v1/lotes/{id}` | authenticated | Lot detail with its movements |
+| `GET /api/v1/documentos/plantillas` | authenticated | Paginated, filter: `soloActivas` |
+| `POST /api/v1/documentos/generar` | authenticated | Creates the pre-filled draft |
+| `GET /api/v1/documentos/{id}` | authenticated | Draft with every field, value and origin |
+| `POST /api/v1/documentos/{id}/confirmar` | authenticated | Human confirmation; 409 if already confirmed |
 | `GET /api/v1/items` | authenticated-free (sample) | Paginated |
 | `GET /health` | anonymous | Checks Postgres |
 
-## 13. Configuration & environment
+## 14. Configuration & environment
 
 Configuration lives in **`.env`** (gitignored, read automatically by
 `docker compose up`); `.env.example` documents every key. Never put secrets in
@@ -318,7 +385,7 @@ Configuration lives in **`.env`** (gitignored, read automatically by
 Running the API outside Docker reads `appsettings.Development.json` instead of
 `.env` — keep the local connection string in sync there.
 
-## 14. Commands
+## 15. Commands
 
 ```bash
 dotnet build                                                              # build
