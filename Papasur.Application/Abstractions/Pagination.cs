@@ -46,11 +46,12 @@ public sealed record PageRequest
 }
 
 /// <summary>
-/// Página de resultados: los items más los metadatos que el front necesita para paginar.
+/// Página de resultados. La envoltura { items, page, pageSize, total } es la que espera el
+/// front en TODOS los listados (contrato de API §0); el resto son campos derivados.
 /// </summary>
-public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalCount)
+public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int Total)
 {
-    public int TotalPages => PageSize == 0 ? 0 : (int)Math.Ceiling(TotalCount / (double)PageSize);
+    public int TotalPages => PageSize == 0 ? 0 : (int)Math.Ceiling(Total / (double)PageSize);
 
     public bool HasPrevious => Page > 1;
 
@@ -59,5 +60,5 @@ public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSi
     public static PagedResult<T> Empty(PageRequest page) => new([], page.Page, page.PageSize, 0);
 
     public PagedResult<TOut> Map<TOut>(Func<T, TOut> selector)
-        => new(Items.Select(selector).ToList(), Page, PageSize, TotalCount);
+        => new(Items.Select(selector).ToList(), Page, PageSize, Total);
 }

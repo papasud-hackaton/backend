@@ -1,15 +1,20 @@
 using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
+using Papasur.Application.Audit;
 using Papasur.Application.Audit.Ports;
 using Papasur.Application.Auth.Ports;
+using Papasur.Application.Users.Mapping;
 using Papasur.Application.Users.Ports;
 using Papasur.Domain.Audit;
+using Papasur.Domain.Users;
 
 namespace Papasur.Application.Auth.Commands.Login;
 
 /// <summary>
-/// Autentica y emite el JWT. Todo fallo devuelve el MISMO error genérico
-/// (no se revela si el correo existe o si la contraseña es incorrecta).
+/// Autentica y emite el JWT. Contrato §1: el 401 tiene que ser IDÉNTICO para usuario
+/// inexistente y contraseña incorrecta — si difieren, se filtra qué cuentas existen.
+/// La cuenta desactivada es el único caso que se distingue (403), porque el usuario
+/// necesita saber que tiene que hablar con un admin.
 /// </summary>
 public sealed class LoginCommandHandler(
     IUserRepository users,
@@ -18,8 +23,11 @@ public sealed class LoginCommandHandler(
     IAuditRepository audit)
     : ICommandHandler<LoginCommand, Result<LoginResponse>>
 {
-    private static readonly Error InvalidCredentials =
-        new("Auth.InvalidCredentials", "Correo o contraseña incorrectos.");
+    public static readonly Error InvalidCredentials =
+        new("Auth.InvalidCredentials", "El correo o la contraseña no son correctos.");
+
+    public static readonly Error Disabled =
+        new("Auth.Disabled", "Tu cuenta está desactivada. Contactá a un administrador.");
 
     public async Task<Result<LoginResponse>> Handle(LoginCommand command, CancellationToken cancellationToken)
     {
@@ -30,31 +38,17 @@ public sealed class LoginCommandHandler(
 
         var user = await users.GetByEmailAsync(command.Email.Trim().ToLowerInvariant(), cancellationToken);
 
-        if (user is null || !passwordHasher.Verify(command.Password, user.PasswordHash))
+        // Sin usuario, sin contraseña definida (invitado) o con contraseña incorrecta: el MISMO error.
+        if (user is null
+            || string.IsNullOrEmpty(user.PasswordHash)
+            || !passwordHasher.Verify(command.Password, user.PasswordHash))
         {
-            if (user is not null)
-            {
-                await audit.AddAsync(
-                    new AuditEntry
-                    {
-                        Id = Guid.NewGuid(),
-                        UserId = user.Id,
-                        Action = AuditActions.LoginFailed,
-                        EntityType = nameof(Domain.Users.User),
-                        EntityId = user.Id.ToString(),
-                        Detail = "Contraseña incorrecta.",
-                        IpAddress = command.IpAddress,
-                        OccurredAt = DateTime.UtcNow,
-                    },
-                    cancellationToken);
-            }
-
             return Result.Failure<LoginResponse>(InvalidCredentials);
         }
 
         if (!user.IsActive)
         {
-            return Result.Failure<LoginResponse>(new Error("Auth.UserInactive", "El usuario está inactivo."));
+            return Result.Failure<LoginResponse>(Disabled);
         }
 
         var token = tokenGenerator.Generate(user);
@@ -62,25 +56,12 @@ public sealed class LoginCommandHandler(
         user.LastLoginAt = DateTime.UtcNow;
         await users.UpdateAsync(user, cancellationToken);
 
+        var actor = new Actor(user.Id, user.FullName, user.Role.Name, command.IpAddress);
+
         await audit.AddAsync(
-            new AuditEntry
-            {
-                Id = Guid.NewGuid(),
-                UserId = user.Id,
-                Action = AuditActions.Login,
-                EntityType = nameof(Domain.Users.User),
-                EntityId = user.Id.ToString(),
-                IpAddress = command.IpAddress,
-                OccurredAt = DateTime.UtcNow,
-            },
+            AuditFactory.Create(actor, AuditActions.UserLogin, AuditEntityTypes.User, user.Id.ToString()),
             cancellationToken);
 
-        return Result.Success(new LoginResponse(
-            token.Token,
-            token.ExpiresAt,
-            user.Id,
-            user.Name,
-            user.Email,
-            user.Role.Name));
+        return Result.Success(new LoginResponse(user.ToDto(), token.Token, token.ExpiresAt));
     }
 }

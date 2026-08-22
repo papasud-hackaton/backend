@@ -15,60 +15,52 @@ public class EfUserRepository(AppDbContext db) : IUserRepository
     }
 
     public async Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken)
-    {
-        return await db.Users
-            .Include(u => u.Role)
-            .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
-    }
+        => await db.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
 
     public async Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
-    {
-        return await db.Users
-            .Include(u => u.Role)
-            .FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
-    }
+        => await db.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
 
     public Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken)
         => db.Users.AnyAsync(u => u.Email == email, cancellationToken);
 
-    public Task<bool> EmployeeNumberExistsAsync(string employeeNumber, CancellationToken cancellationToken)
-        => db.Users.AnyAsync(u => u.EmployeeNumber == employeeNumber, cancellationToken);
+    public Task<bool> EmployeeIdExistsAsync(string employeeId, CancellationToken cancellationToken)
+        => db.Users.AnyAsync(u => u.EmployeeId == employeeId, cancellationToken);
 
     public async Task<PagedResult<User>> ListAsync(
         PageRequest page,
         string? search,
-        int? roleId,
-        bool? isActive,
+        string? role,
+        string? status,
         CancellationToken cancellationToken)
     {
-        var query = db.Users
-            .AsNoTracking()
-            .Include(u => u.Role)
-            .AsQueryable();
+        var query = db.Users.AsNoTracking().Include(u => u.Role).AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
+            // Contrato §2: busca en nombre, apellido, correo y legajo.
             var pattern = $"%{search}%";
             query = query.Where(u =>
-                EF.Functions.ILike(u.Name, pattern)
+                EF.Functions.ILike(u.FirstName, pattern)
+                || EF.Functions.ILike(u.LastName, pattern)
                 || EF.Functions.ILike(u.Email, pattern)
-                || EF.Functions.ILike(u.EmployeeNumber, pattern));
+                || EF.Functions.ILike(u.EmployeeId, pattern));
         }
 
-        if (roleId is { } role)
+        if (!string.IsNullOrWhiteSpace(role))
         {
-            query = query.Where(u => u.RoleId == role);
+            query = query.Where(u => u.Role.Name == role);
         }
 
-        if (isActive is { } active)
+        if (!string.IsNullOrWhiteSpace(status))
         {
-            query = query.Where(u => u.IsActive == active);
+            query = query.Where(u => u.Status == status);
         }
 
         var total = await query.CountAsync(cancellationToken);
 
         var users = await query
-            .OrderBy(u => u.Name)
+            .OrderBy(u => u.LastName)
+            .ThenBy(u => u.FirstName)
             .ThenBy(u => u.Id)
             .Skip(page.Skip)
             .Take(page.PageSize)
@@ -83,6 +75,5 @@ public class EfUserRepository(AppDbContext db) : IUserRepository
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public Task<bool> AnyAsync(CancellationToken cancellationToken)
-        => db.Users.AnyAsync(cancellationToken);
+    public Task<bool> AnyAsync(CancellationToken cancellationToken) => db.Users.AnyAsync(cancellationToken);
 }

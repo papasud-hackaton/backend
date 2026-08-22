@@ -63,6 +63,9 @@ public static class DependencyInjection
 
         // Servicios de autenticación
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
+        services.AddScoped<IPasswordResetTokenRepository, EfPasswordResetTokenRepository>();
+        // Sin servidor de correo: loguea el enlace. Reemplazar por SMTP antes de producción.
+        services.AddScoped<IInvitationSender, LoggingInvitationSender>();
         services.AddScoped<ITokenGenerator, JwtTokenGenerator>();
 
         // Métricas: cada proveedor aporta las suyas. Agregar una métrica nueva = una línea acá.

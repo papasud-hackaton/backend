@@ -1,3 +1,4 @@
+using Papasur.Application.Abstractions;
 using Papasur.Application.Users.Commands.CreateUser;
 using Papasur.Domain.Audit;
 using Papasur.Domain.Users;
@@ -7,136 +8,150 @@ namespace Papasur.Tests.Users;
 
 public class CreateUserCommandHandlerTests
 {
-    private static (CreateUserCommandHandler Handler, FakeUserRepository Users, FakeAuditRepository Audit) Build()
-    {
-        var users = new FakeUserRepository();
-        var audit = new FakeAuditRepository();
-        var handler = new CreateUserCommandHandler(
-            users,
-            new FakeRoleRepository(),
-            new FakePasswordHasher(),
-            audit);
+    private readonly FakeUserRepository _users = new();
+    private readonly FakePasswordResetTokenRepository _tokens = new();
+    private readonly FakeInvitationSender _sender = new();
+    private readonly FakeAuditRepository _audit = new();
 
-        return (handler, users, audit);
-    }
+    private CreateUserCommandHandler Handler()
+        => new(_users, new FakeRoleRepository(), _tokens, _sender, _audit);
 
-    private static CreateUserCommand ValidCommand() =>
-        new("Ana Pérez", "Ana.Perez@papasur.com", "Secreta.123", "A-1042", RoleIds.Agente);
+    private static CreateUserCommand Valido() =>
+        new("Ana", "Pérez", "Ana.Perez@papasud.com", "A-1042", RoleNames.Agent, "+54 9 11 5555");
 
     [Fact]
-    public async Task Handle_ConDatosValidos_PersisteHasheaYAudita()
+    public async Task Handle_CreaElUsuarioComoInvitadoYSinContrasena()
     {
-        var (handler, users, audit) = Build();
-
-        var result = await handler.Handle(ValidCommand(), CancellationToken.None);
+        var result = await Handler().Handle(Valido(), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        var user = Assert.Single(users.Users);
-        Assert.Equal("ana.perez@papasur.com", user.Email);
-        Assert.Equal("Ana Pérez", user.Name);
-        Assert.Equal("A-1042", user.EmployeeNumber);
-        Assert.Equal(RoleIds.Agente, user.RoleId);
-        Assert.True(user.IsActive);
+        var user = Assert.Single(_users.Users);
 
-        // El handler guarda lo que devuelve el hasher, nunca la contraseña tal cual la mandaron.
-        // (que el hash real no contenga la password se verifica en Pbkdf2PasswordHasherTests)
-        Assert.NotEqual("Secreta.123", user.PasswordHash);
-        Assert.Equal(new FakePasswordHasher().Hash("Secreta.123"), user.PasswordHash);
+        Assert.Equal("Ana", user.FirstName);
+        Assert.Equal("Pérez", user.LastName);
+        Assert.Equal("ana.perez@papasud.com", user.Email);
+        Assert.Equal("A-1042", user.EmployeeId);
+        Assert.Equal(RoleIds.Agent, user.RoleId);
+        // Contrato §2: nace invitado y sin contraseña; la define desde la invitación.
+        Assert.Equal(UserStatuses.Invited, user.Status);
+        Assert.Equal(string.Empty, user.PasswordHash);
+        Assert.False(user.IsActive);
+    }
 
-        var entry = Assert.Single(audit.Entries);
+    [Fact]
+    public async Task Handle_EmiteLaInvitacionConUnTokenGuardadoHasheado()
+    {
+        await Handler().Handle(Valido(), CancellationToken.None);
+
+        var (email, token, esInvitacion) = Assert.Single(_sender.Enviados);
+        Assert.Equal("ana.perez@papasud.com", email);
+        Assert.True(esInvitacion);
+
+        var guardado = Assert.Single(_tokens.Tokens);
+        // El token en claro sólo viaja en el enlace: en la base va su hash.
+        Assert.NotEqual(token, guardado.TokenHash);
+        Assert.True(guardado.ExpiresAt > DateTime.UtcNow);
+        Assert.Null(guardado.UsedAt);
+    }
+
+    [Fact]
+    public async Task Handle_DevuelveElUsuarioSinExponerElHash()
+    {
+        var result = await Handler().Handle(Valido(), CancellationToken.None);
+
+        var dto = result.Value;
+        Assert.Equal("Ana", dto.FirstName);
+        Assert.Equal(RoleNames.Agent, dto.Role);
+        Assert.Equal(UserStatuses.Invited, dto.Status);
+        Assert.Equal("+54 9 11 5555", dto.Phone);
+    }
+
+    [Fact]
+    public async Task Handle_AuditaElAltaConElActor()
+    {
+        var actor = new Actor(Guid.NewGuid(), "Admin Papasud", RoleNames.Admin, "10.0.0.7");
+
+        await Handler().Handle(Valido() with { Actor = actor }, CancellationToken.None);
+
+        var entry = Assert.Single(_audit.Entries);
         Assert.Equal(AuditActions.UserCreated, entry.Action);
-        Assert.Equal(user.Id.ToString(), entry.EntityId);
+        Assert.Equal(actor.Id, entry.UserId);
+        // La auditoría guarda el nombre y el rol del actor, no una FK.
+        Assert.Equal("Admin Papasud", entry.ActorName);
+        Assert.Equal(RoleNames.Admin, entry.ActorRole);
+        Assert.Equal("10.0.0.7", entry.IpAddress);
     }
 
     [Fact]
-    public async Task Handle_AtribuyeLaAuditoriaAQuienEjecuta()
+    public async Task Handle_CorreoDuplicado_NoCrea()
     {
-        var (handler, _, audit) = Build();
-        var admin = Guid.NewGuid();
+        await Handler().Handle(Valido(), CancellationToken.None);
 
-        await handler.Handle(ValidCommand() with { PerformedByUserId = admin }, CancellationToken.None);
-
-        Assert.Equal(admin, Assert.Single(audit.Entries).UserId);
-    }
-
-    [Fact]
-    public async Task Handle_CorreoDuplicado_DevuelveConflictoSinPersistir()
-    {
-        var (handler, users, _) = Build();
-        await handler.Handle(ValidCommand(), CancellationToken.None);
-
-        var result = await handler.Handle(
-            ValidCommand() with { EmployeeNumber = "A-9999" },
+        var result = await Handler().Handle(
+            Valido() with { EmployeeId = "A-9999" },
             CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal("User.EmailAlreadyExists", result.Error.Code);
-        Assert.Single(users.Users);
+        Assert.Single(_users.Users);
     }
 
     [Fact]
-    public async Task Handle_LegajoDuplicado_DevuelveFailure()
+    public async Task Handle_LegajoDuplicado_NoCrea()
     {
-        var (handler, _, _) = Build();
-        await handler.Handle(ValidCommand(), CancellationToken.None);
+        await Handler().Handle(Valido(), CancellationToken.None);
 
-        var result = await handler.Handle(
-            ValidCommand() with { Email = "otro@papasur.com" },
+        var result = await Handler().Handle(
+            Valido() with { Email = "otra@papasud.com" },
             CancellationToken.None);
 
         Assert.True(result.IsFailure);
-        Assert.Equal("User.EmployeeNumberAlreadyExists", result.Error.Code);
+        Assert.Equal("User.EmployeeIdAlreadyExists", result.Error.Code);
+        Assert.Single(_users.Users);
     }
 
     [Theory]
-    [InlineData("", "User.NameRequired")]
-    public async Task Handle_SinNombre_DevuelveFailure(string name, string expectedCode)
+    [InlineData("", "Pérez", "User.FirstNameRequired")]
+    [InlineData("Ana", "", "User.LastNameRequired")]
+    public async Task Handle_SinNombreOApellido_DevuelveFailure(string nombre, string apellido, string code)
     {
-        var (handler, users, _) = Build();
-
-        var result = await handler.Handle(ValidCommand() with { Name = name }, CancellationToken.None);
+        var result = await Handler().Handle(
+            Valido() with { FirstName = nombre, LastName = apellido },
+            CancellationToken.None);
 
         Assert.True(result.IsFailure);
-        Assert.Equal(expectedCode, result.Error.Code);
-        Assert.Empty(users.Users);
+        Assert.Equal(code, result.Error.Code);
+        Assert.Empty(_users.Users);
     }
 
     [Theory]
     [InlineData("sin-arroba")]
     [InlineData("a@b")]
-    [InlineData("con espacio@papasur.com")]
+    [InlineData("con espacio@papasud.com")]
     public async Task Handle_CorreoInvalido_DevuelveFailure(string email)
     {
-        var (handler, users, _) = Build();
-
-        var result = await handler.Handle(ValidCommand() with { Email = email }, CancellationToken.None);
+        var result = await Handler().Handle(Valido() with { Email = email }, CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal("User.EmailInvalid", result.Error.Code);
-        Assert.Empty(users.Users);
-    }
-
-    [Fact]
-    public async Task Handle_PasswordCorta_DevuelveFailure()
-    {
-        var (handler, users, _) = Build();
-
-        var result = await handler.Handle(ValidCommand() with { Password = "corta" }, CancellationToken.None);
-
-        Assert.True(result.IsFailure);
-        Assert.Equal("User.PasswordTooShort", result.Error.Code);
-        Assert.Empty(users.Users);
     }
 
     [Fact]
     public async Task Handle_RolInexistente_DevuelveFailure()
     {
-        var (handler, users, _) = Build();
-
-        var result = await handler.Handle(ValidCommand() with { RoleId = 99 }, CancellationToken.None);
+        var result = await Handler().Handle(Valido() with { Role = "gerente" }, CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal("User.RoleNotFound", result.Error.Code);
-        Assert.Empty(users.Users);
+        Assert.Empty(_users.Users);
+    }
+
+    [Fact]
+    public async Task Handle_SinLegajo_DevuelveFailure()
+    {
+        var result = await Handler().Handle(Valido() with { EmployeeId = "  " }, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("User.EmployeeIdRequired", result.Error.Code);
     }
 }

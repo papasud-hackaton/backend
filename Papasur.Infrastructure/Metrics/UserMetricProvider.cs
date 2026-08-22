@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Papasur.Application.Metrics.Ports;
+using Papasur.Domain.Users;
 using Papasur.Infrastructure.Persistence;
 
 namespace Papasur.Infrastructure.Metrics;
@@ -26,7 +27,7 @@ public sealed class UserMetricProvider(AppDbContext db) : IMetricProvider
         }
 
         var total = await query.CountAsync(cancellationToken);
-        var active = await query.CountAsync(u => u.IsActive, cancellationToken);
+        var active = await query.CountAsync(u => u.Status == UserStatuses.Active, cancellationToken);
 
         var byRole = await query
             .GroupBy(u => u.Role.Name)

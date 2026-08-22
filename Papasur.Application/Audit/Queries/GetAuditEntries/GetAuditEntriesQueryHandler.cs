@@ -11,28 +11,32 @@ public sealed class GetAuditEntriesQueryHandler(IAuditRepository audit)
         GetAuditEntriesQuery query,
         CancellationToken cancellationToken)
     {
-        var filter = query.Filter;
-
-        if (filter.From is { } from && filter.To is { } to && from > to)
+        if (query.Filter.From is { } from && query.Filter.To is { } to && from > to)
         {
             return Result.Failure<PagedResult<AuditEntryDto>>(new Error(
                 "Audit.InvalidDateRange",
                 "La fecha 'desde' no puede ser posterior a la fecha 'hasta'."));
         }
 
-        var page = await audit.ListAsync(query.Page, filter, cancellationToken);
+        var page = await audit.ListAsync(query.Page, query.Filter, cancellationToken);
 
-        return Result.Success(page.Map(e => new AuditEntryDto(
-            e.Id,
-            e.UserId,
-            e.User?.Name ?? string.Empty,
-            e.User?.Email ?? string.Empty,
-            e.User?.EmployeeNumber ?? string.Empty,
-            e.Action,
-            e.EntityType,
-            e.EntityId,
-            e.Detail,
-            e.IpAddress,
-            e.OccurredAt)));
+        return Result.Success(page.Map(AuditMapping.ToDto));
     }
+}
+
+/// <summary>Proyección única de la entrada de auditoría.</summary>
+public static class AuditMapping
+{
+    public static AuditEntryDto ToDto(Domain.Audit.AuditEntry e) => new(
+        e.Id,
+        e.UserId,
+        e.ActorName,
+        e.ActorRole,
+        e.Action,
+        e.EntityType,
+        e.EntityId,
+        e.Changes,
+        e.Detail,
+        e.IpAddress,
+        e.OccurredAt);
 }

@@ -1,20 +1,20 @@
 using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
+using Papasur.Application.Users.Queries.GetUsers;
 
 namespace Papasur.Application.Users.Commands.CreateUser;
 
 /// <summary>
-/// Alta de usuario. PerformedByUserId lo completa el controller con el usuario del JWT
-/// (no viene del body) y queda registrado en auditoría.
+/// Alta de usuario hecha por un admin. NO se manda contraseña (contrato §2): el usuario
+/// nace "invited" y define la suya desde el enlace de invitación.
 /// </summary>
 public sealed record CreateUserCommand(
-    string Name,
+    string FirstName,
+    string LastName,
     string Email,
-    string Password,
-    string EmployeeNumber,
-    int RoleId) : ICommand<Result<Guid>>
+    string EmployeeId,
+    string Role,
+    string? Phone = null) : ICommand<Result<UserDto>>
 {
-    public Guid? PerformedByUserId { get; init; }
-
-    public string? IpAddress { get; init; }
+    public Actor? Actor { get; init; }
 }

@@ -1,13 +1,16 @@
 namespace Papasur.Application.Users.Queries.GetUsers;
 
-/// <summary>Proyección de usuario hacia afuera: nunca expone el PasswordHash.</summary>
+/// <summary>
+/// Usuario tal como lo consume el front (contrato §2). NUNCA expone el PasswordHash.
+/// </summary>
 public sealed record UserDto(
     Guid Id,
-    string Name,
+    string FirstName,
+    string LastName,
     string Email,
-    string EmployeeNumber,
-    int RoleId,
+    string EmployeeId,
     string Role,
-    bool IsActive,
+    string Status,
+    string? Phone,
     DateTime CreatedAt,
     DateTime? LastLoginAt);

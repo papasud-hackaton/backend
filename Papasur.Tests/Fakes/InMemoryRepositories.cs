@@ -1,6 +1,7 @@
 using Papasur.Application.Abstractions;
 using Papasur.Application.Audit.Ports;
 using Papasur.Application.Auth.Ports;
+using Papasur.Domain.Users;
 using Papasur.Application.Roles.Ports;
 using Papasur.Application.Users.Ports;
 using Papasur.Domain.Audit;
@@ -28,31 +29,35 @@ public sealed class FakeUserRepository : IUserRepository
     public Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken)
         => Task.FromResult(Users.Any(u => u.Email == email));
 
-    public Task<bool> EmployeeNumberExistsAsync(string employeeNumber, CancellationToken cancellationToken)
-        => Task.FromResult(Users.Any(u => u.EmployeeNumber == employeeNumber));
+    public Task<bool> EmployeeIdExistsAsync(string employeeId, CancellationToken cancellationToken)
+        => Task.FromResult(Users.Any(u => u.EmployeeId == employeeId));
 
     public Task<PagedResult<User>> ListAsync(
         PageRequest page,
         string? search,
-        int? roleId,
-        bool? isActive,
+        string? role,
+        string? status,
         CancellationToken cancellationToken)
     {
         var query = Users.AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(u => u.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(u =>
+                u.FirstName.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || u.LastName.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || u.Email.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || u.EmployeeId.Contains(search, StringComparison.OrdinalIgnoreCase));
         }
 
-        if (roleId is { } role)
+        if (!string.IsNullOrWhiteSpace(role))
         {
-            query = query.Where(u => u.RoleId == role);
+            query = query.Where(u => u.Role?.Name == role);
         }
 
-        if (isActive is { } active)
+        if (!string.IsNullOrWhiteSpace(status))
         {
-            query = query.Where(u => u.IsActive == active);
+            query = query.Where(u => u.Status == status);
         }
 
         var all = query.ToList();
@@ -69,17 +74,71 @@ public sealed class FakeUserRepository : IUserRepository
     public Task<bool> AnyAsync(CancellationToken cancellationToken) => Task.FromResult(Users.Count > 0);
 }
 
+/// <summary>Guarda los tokens de recuperación/invitación emitidos, para poder canjearlos en los tests.</summary>
+public sealed class FakePasswordResetTokenRepository : IPasswordResetTokenRepository
+{
+    public List<PasswordResetToken> Tokens { get; } = [];
+
+    public Task AddAsync(PasswordResetToken token, CancellationToken cancellationToken)
+    {
+        Tokens.Add(token);
+        return Task.CompletedTask;
+    }
+
+    public Task<PasswordResetToken?> GetByHashAsync(string tokenHash, CancellationToken cancellationToken)
+        => Task.FromResult(Tokens.FirstOrDefault(t => t.TokenHash == tokenHash));
+
+    public Task UpdateAsync(PasswordResetToken token, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task InvalidateAllForUserAsync(Guid userId, DateTime now, CancellationToken cancellationToken)
+    {
+        foreach (var token in Tokens.Where(t => t.UserId == userId && t.UsedAt is null))
+        {
+            token.UsedAt = now;
+        }
+
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>Captura los envíos en vez de mandar correo, para poder aseverar sobre ellos.</summary>
+public sealed class FakeInvitationSender : IInvitationSender
+{
+    public List<(string Email, string Token, bool EsInvitacion)> Enviados { get; } = [];
+
+    public Task SendInvitationAsync(string email, string firstName, string token, CancellationToken cancellationToken)
+    {
+        Enviados.Add((email, token, true));
+        return Task.CompletedTask;
+    }
+
+    public Task SendPasswordResetAsync(string email, string firstName, string token, CancellationToken cancellationToken)
+    {
+        Enviados.Add((email, token, false));
+        return Task.CompletedTask;
+    }
+}
+
 public sealed class FakeRoleRepository(params int[] existingRoleIds) : IRoleRepository
 {
     private readonly int[] _ids = existingRoleIds.Length > 0
         ? existingRoleIds
-        : [RoleIds.Admin, RoleIds.Supervisor, RoleIds.Agente];
+        : [RoleIds.Admin, RoleIds.Supervisor, RoleIds.Agent];
+
+    private static readonly Dictionary<string, int> PorNombre = new()
+    {
+        [RoleNames.Admin] = RoleIds.Admin,
+        [RoleNames.Supervisor] = RoleIds.Supervisor,
+        [RoleNames.Agent] = RoleIds.Agent,
+    };
 
     public Task<PagedResult<Role>> ListAsync(PageRequest page, CancellationToken cancellationToken)
         => Task.FromResult(new PagedResult<Role>([], page.Page, page.PageSize, 0));
 
     public Task<Role?> GetByNameAsync(string name, CancellationToken cancellationToken)
-        => Task.FromResult<Role?>(null);
+        => Task.FromResult(PorNombre.TryGetValue(name, out var id) && _ids.Contains(id)
+            ? new Role { Id = id, Name = name }
+            : null);
 
     public Task<bool> ExistsAsync(int roleId, CancellationToken cancellationToken)
         => Task.FromResult(_ids.Contains(roleId));
@@ -100,6 +159,9 @@ public sealed class FakeAuditRepository : IAuditRepository
         AuditFilter filter,
         CancellationToken cancellationToken)
         => Task.FromResult(new PagedResult<AuditEntry>(Entries, page.Page, page.PageSize, Entries.Count));
+
+    public Task<IReadOnlyList<AuditEntry>> ListAllAsync(AuditFilter filter, CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyList<AuditEntry>>(Entries);
 }
 
 /// <summary>Hasher trivial: NO usar fuera de tests.</summary>

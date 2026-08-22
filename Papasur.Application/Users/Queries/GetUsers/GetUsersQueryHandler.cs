@@ -1,5 +1,6 @@
 using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
+using Papasur.Application.Users.Mapping;
 using Papasur.Application.Users.Ports;
 
 namespace Papasur.Application.Users.Queries.GetUsers;
@@ -12,19 +13,10 @@ public sealed class GetUsersQueryHandler(IUserRepository users)
         var page = await users.ListAsync(
             query.Page,
             string.IsNullOrWhiteSpace(query.Search) ? null : query.Search.Trim(),
-            query.RoleId,
-            query.IsActive,
+            string.IsNullOrWhiteSpace(query.Role) ? null : query.Role.Trim().ToLowerInvariant(),
+            string.IsNullOrWhiteSpace(query.Status) ? null : query.Status.Trim().ToLowerInvariant(),
             cancellationToken);
 
-        return page.Map(u => new UserDto(
-            u.Id,
-            u.Name,
-            u.Email,
-            u.EmployeeNumber,
-            u.RoleId,
-            u.Role?.Name ?? string.Empty,
-            u.IsActive,
-            u.CreatedAt,
-            u.LastLoginAt));
+        return page.Map(u => u.ToDto());
     }
 }

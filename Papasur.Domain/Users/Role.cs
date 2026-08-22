@@ -24,9 +24,9 @@ public static class RoleNames
 
     public const string Supervisor = "supervisor";
 
-    public const string Agente = "agente";
+    public const string Agent = "agent";
 
-    public static readonly string[] All = [Admin, Supervisor, Agente];
+    public static readonly string[] All = [Admin, Supervisor, Agent];
 
     public static bool Exists(string name) => All.Contains(name);
 }
@@ -37,5 +37,5 @@ public static class RoleIds
 
     public const int Supervisor = 2;
 
-    public const int Agente = 3;
+    public const int Agent = 3;
 }

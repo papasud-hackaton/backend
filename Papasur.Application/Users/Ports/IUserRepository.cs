@@ -17,14 +17,16 @@ public interface IUserRepository
 
     Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken);
 
-    Task<bool> EmployeeNumberExistsAsync(string employeeNumber, CancellationToken cancellationToken);
+    Task<bool> EmployeeIdExistsAsync(string employeeId, CancellationToken cancellationToken);
 
-    /// <summary>Listado paginado, opcionalmente filtrado por rol, estado o texto libre.</summary>
+    /// <summary>
+    /// Listado paginado. search busca en nombre, apellido, correo y legajo (contrato §2).
+    /// </summary>
     Task<PagedResult<User>> ListAsync(
         PageRequest page,
         string? search,
-        int? roleId,
-        bool? isActive,
+        string? role,
+        string? status,
         CancellationToken cancellationToken);
 
     Task UpdateAsync(User user, CancellationToken cancellationToken);

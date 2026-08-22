@@ -21,6 +21,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
     public DbSet<Role> Roles => Set<Role>();
 
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+
     public DbSet<Status> Statuses => Set<Status>();
 
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
@@ -73,7 +75,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasData(
                 new Role { Id = RoleIds.Admin, Name = RoleNames.Admin, Description = "Acceso total al sistema." },
                 new Role { Id = RoleIds.Supervisor, Name = RoleNames.Supervisor, Description = "Supervisa y consulta la operación." },
-                new Role { Id = RoleIds.Agente, Name = RoleNames.Agente, Description = "Opera la documentación día a día." });
+                new Role { Id = RoleIds.Agent, Name = RoleNames.Agent, Description = "Opera la documentación día a día." });
         });
 
         modelBuilder.Entity<Status>(entity =>
@@ -96,12 +98,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             entity.ToTable("user");
             entity.HasKey(u => u.Id);
-            entity.Property(u => u.Name).HasMaxLength(150).IsRequired();
+            entity.Property(u => u.FirstName).HasMaxLength(100).IsRequired();
+            entity.Property(u => u.LastName).HasMaxLength(100).IsRequired();
             entity.Property(u => u.Email).HasMaxLength(256).IsRequired();
+            // Vacío mientras el usuario está invitado y no definió contraseña.
             entity.Property(u => u.PasswordHash).HasMaxLength(512).IsRequired();
-            entity.Property(u => u.EmployeeNumber).HasMaxLength(50).IsRequired();
+            entity.Property(u => u.EmployeeId).HasMaxLength(50).IsRequired();
+            entity.Property(u => u.Phone).HasMaxLength(50);
+            entity.Property(u => u.Status).HasMaxLength(20).IsRequired();
             entity.HasIndex(u => u.Email).IsUnique();
-            entity.HasIndex(u => u.EmployeeNumber).IsUnique();
+            entity.HasIndex(u => u.EmployeeId).IsUnique();
+            entity.HasIndex(u => u.Status);
+            // FullName e IsActive se calculan en el dominio: no son columnas.
+            entity.Ignore(u => u.FullName);
+            entity.Ignore(u => u.IsActive);
 
             entity.HasOne(u => u.Role)
                 .WithMany(r => r.Users)
@@ -109,11 +119,30 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<PasswordResetToken>(entity =>
+        {
+            entity.ToTable("password_reset_token");
+            entity.HasKey(t => t.Id);
+            entity.Property(t => t.TokenHash).HasMaxLength(128).IsRequired();
+            // Se busca por hash en cada canje: único e indexado.
+            entity.HasIndex(t => t.TokenHash).IsUnique();
+            entity.HasIndex(t => t.UserId);
+
+            entity.HasOne(t => t.User)
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<AuditEntry>(entity =>
         {
             entity.ToTable("audit_entry");
             entity.HasKey(a => a.Id);
+            entity.Property(a => a.ActorName).HasMaxLength(200).IsRequired();
+            entity.Property(a => a.ActorRole).HasMaxLength(50).IsRequired();
             entity.Property(a => a.Action).HasMaxLength(100).IsRequired();
+            // JSON con los cambios: [{ field, from, to }].
+            entity.Property(a => a.Changes).HasColumnType("jsonb");
             entity.Property(a => a.EntityType).HasMaxLength(100).IsRequired();
             entity.Property(a => a.EntityId).HasMaxLength(100);
             entity.Property(a => a.Detail).HasMaxLength(1000);
@@ -129,6 +158,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             entity.HasIndex(a => a.OccurredAt);
             entity.HasIndex(a => a.UserId);
             entity.HasIndex(a => a.Action);
+            entity.HasIndex(a => a.ActorRole);
             entity.HasIndex(a => new { a.EntityType, a.EntityId });
         });
 

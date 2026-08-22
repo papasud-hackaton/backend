@@ -1,5 +1,6 @@
 using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
+using Papasur.Application.Users.Mapping;
 using Papasur.Application.Users.Ports;
 using Papasur.Application.Users.Queries.GetUsers;
 
@@ -12,20 +13,8 @@ public sealed class GetUserByIdQueryHandler(IUserRepository users)
     {
         var user = await users.GetByIdAsync(query.UserId, cancellationToken);
 
-        if (user is null)
-        {
-            return Result.Failure<UserDto>(new Error("User.NotFound", "El usuario no existe."));
-        }
-
-        return Result.Success(new UserDto(
-            user.Id,
-            user.Name,
-            user.Email,
-            user.EmployeeNumber,
-            user.RoleId,
-            user.Role?.Name ?? string.Empty,
-            user.IsActive,
-            user.CreatedAt,
-            user.LastLoginAt));
+        return user is null
+            ? Result.Failure<UserDto>(new Error("User.NotFound", "El usuario no existe."))
+            : Result.Success(user.ToDto());
     }
 }

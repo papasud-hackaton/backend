@@ -1,11 +1,11 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Papasur.Api.Authorization;
+using Papasur.Api.Contracts;
 using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
 using Papasur.Application.Users.Commands.CreateUser;
-using Papasur.Application.Users.Commands.ResetUserPassword;
-using Papasur.Application.Users.Commands.SetUserActive;
+using Papasur.Application.Users.Commands.DeactivateUser;
+using Papasur.Application.Users.Commands.UpdateUser;
 using Papasur.Application.Users.Queries.GetUserById;
 using Papasur.Application.Users.Queries.GetUsers;
 using Papasur.Domain.Users;
@@ -13,63 +13,32 @@ using Papasur.Domain.Users;
 namespace Papasur.Api.Controllers;
 
 /// <summary>
-/// Administración de usuarios. El alta es SIEMPRE manual y sólo la hace un admin:
-/// no existe registro público (por diseño).
+/// Administración de usuarios (contrato §2). Todo exige users.manage → SOLO admin.
+/// El alta es siempre manual y por invitación: no existe registro público.
 /// </summary>
-[ApiController]
 [Route("api/v1/users")]
-public class UsersController : ControllerBase
+[AuthorizeRoles(RoleNames.Admin)]
+public class UsersController : ApiControllerBase
 {
-    /// <summary>Listado paginado de usuarios, con filtros por texto, rol y estado.</summary>
+    /// <summary>Listado paginado. search busca en nombre, apellido, correo y legajo.</summary>
     [HttpGet]
-    [AuthorizeRoles(RoleNames.Admin, RoleNames.Supervisor)]
     public async Task<ActionResult<PagedResult<UserDto>>> List(
         [FromServices] IQueryHandler<GetUsersQuery, PagedResult<UserDto>> handler,
         CancellationToken cancellationToken,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = PageRequest.DefaultPageSize,
         [FromQuery] string? search = null,
-        [FromQuery] int? roleId = null,
-        [FromQuery] bool? isActive = null)
+        [FromQuery] string? role = null,
+        [FromQuery] string? status = null)
     {
         var result = await handler.Handle(
-            new GetUsersQuery(new PageRequest(page, pageSize), search, roleId, isActive),
+            new GetUsersQuery(new PageRequest(page, pageSize), search, role, status),
             cancellationToken);
 
         return Ok(result);
     }
 
-    /// <summary>Alta de usuario (sólo admin). La contraseña se guarda hasheada.</summary>
-    [HttpPost]
-    [AuthorizeRoles(RoleNames.Admin)]
-    public async Task<ActionResult<Guid>> Create(
-        [FromBody] CreateUserCommand command,
-        [FromServices] ICommandHandler<CreateUserCommand, Result<Guid>> handler,
-        CancellationToken cancellationToken)
-    {
-        var enriched = command with
-        {
-            PerformedByUserId = GetCurrentUserId(),
-            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
-        };
-
-        var result = await handler.Handle(enriched, cancellationToken);
-
-        if (result.IsFailure)
-        {
-            var status = result.Error.Code.EndsWith("AlreadyExists", StringComparison.Ordinal)
-                ? StatusCodes.Status409Conflict
-                : StatusCodes.Status400BadRequest;
-
-            return Problem(statusCode: status, title: result.Error.Code, detail: result.Error.Message);
-        }
-
-        return CreatedAtAction(nameof(List), new { id = result.Value }, result.Value);
-    }
-
-    /// <summary>Detalle de un usuario.</summary>
     [HttpGet("{id:guid}")]
-    [AuthorizeRoles(RoleNames.Admin, RoleNames.Supervisor)]
     public async Task<ActionResult<UserDto>> GetById(
         Guid id,
         [FromServices] IQueryHandler<GetUserByIdQuery, Result<UserDto>> handler,
@@ -77,80 +46,106 @@ public class UsersController : ControllerBase
     {
         var result = await handler.Handle(new GetUserByIdQuery(id), cancellationToken);
 
+        return result.IsFailure
+            ? Fail(StatusCodes.Status404NotFound, result.Error)
+            : Ok(result.Value);
+    }
+
+    /// <summary>
+    /// Alta de usuario. No lleva contraseña: se crea "invited" y el backend manda la invitación.
+    /// </summary>
+    [HttpPost]
+    public async Task<ActionResult<UserDto>> Create(
+        [FromBody] CreateUserRequest request,
+        [FromServices] ICommandHandler<CreateUserCommand, Result<UserDto>> handler,
+        CancellationToken cancellationToken)
+    {
+        var result = await handler.Handle(
+            new CreateUserCommand(
+                request.FirstName,
+                request.LastName,
+                request.Email,
+                request.EmployeeId,
+                request.Role,
+                request.Phone)
+            {
+                Actor = CurrentActor,
+            },
+            cancellationToken);
+
         if (result.IsFailure)
         {
-            return Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: result.Error.Code,
-                detail: result.Error.Message);
+            return Fail(StatusCodes.Status400BadRequest, result.Error);
+        }
+
+        return CreatedAtAction(nameof(GetById), new { id = result.Value.Id }, result.Value);
+    }
+
+    /// <summary>Edición parcial. Un cambio de rol se audita con el valor anterior y el nuevo.</summary>
+    [HttpPatch("{id:guid}")]
+    public async Task<ActionResult<UserDto>> Update(
+        Guid id,
+        [FromBody] UpdateUserRequest request,
+        [FromServices] ICommandHandler<UpdateUserCommand, Result<UserDto>> handler,
+        CancellationToken cancellationToken)
+    {
+        var result = await handler.Handle(
+            new UpdateUserCommand(id)
+            {
+                FirstName = request.FirstName,
+                LastName = request.LastName,
+                Phone = request.Phone,
+                Role = request.Role,
+                Actor = CurrentActor,
+            },
+            cancellationToken);
+
+        if (result.IsFailure)
+        {
+            var status = result.Error.Code == "User.NotFound"
+                ? StatusCodes.Status404NotFound
+                : StatusCodes.Status400BadRequest;
+
+            return Fail(status, result.Error);
         }
 
         return Ok(result.Value);
     }
 
-    /// <summary>Reseteo de contraseña de otro usuario (sólo admin, sin pedir la anterior).</summary>
-    [HttpPost("{id:guid}/reset-password")]
-    [AuthorizeRoles(RoleNames.Admin)]
-    public async Task<IActionResult> ResetPassword(
+    /// <summary>Baja lógica: no hay DELETE, los formularios históricos conservan su autor.</summary>
+    [HttpPost("{id:guid}/deactivate")]
+    public async Task<ActionResult<UserDto>> Deactivate(
         Guid id,
-        [FromBody] ResetPasswordRequest request,
-        [FromServices] ICommandHandler<ResetUserPasswordCommand, Result> handler,
+        [FromServices] ICommandHandler<DeactivateUserCommand, Result<UserDto>> handler,
         CancellationToken cancellationToken)
     {
         var result = await handler.Handle(
-            new ResetUserPasswordCommand(id, request.NewPassword)
-            {
-                PerformedByUserId = GetCurrentUserId(),
-                IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
-            },
+            new DeactivateUserCommand(id) { Actor = CurrentActor },
             cancellationToken);
 
-        return MapEmptyResult(result);
-    }
-
-    /// <summary>
-    /// Alta/baja lógica del usuario (sólo admin). Los usuarios no se borran nunca:
-    /// la auditoría los referencia.
-    /// </summary>
-    [HttpPatch("{id:guid}/active")]
-    [AuthorizeRoles(RoleNames.Admin)]
-    public async Task<IActionResult> SetActive(
-        Guid id,
-        [FromBody] SetActiveRequest request,
-        [FromServices] ICommandHandler<SetUserActiveCommand, Result> handler,
-        CancellationToken cancellationToken)
-    {
-        var result = await handler.Handle(
-            new SetUserActiveCommand(id, request.IsActive)
-            {
-                PerformedByUserId = GetCurrentUserId(),
-                IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
-            },
-            cancellationToken);
-
-        return MapEmptyResult(result);
-    }
-
-    private IActionResult MapEmptyResult(Result result)
-    {
-        if (result.IsSuccess)
+        if (result.IsFailure)
         {
-            return NoContent();
+            var status = result.Error.Code == "User.NotFound"
+                ? StatusCodes.Status404NotFound
+                : StatusCodes.Status400BadRequest;
+
+            return Fail(status, result.Error);
         }
 
-        var status = result.Error.Code == "User.NotFound"
-            ? StatusCodes.Status404NotFound
-            : StatusCodes.Status400BadRequest;
-
-        return Problem(statusCode: status, title: result.Error.Code, detail: result.Error.Message);
+        return Ok(result.Value);
     }
-
-    private Guid? GetCurrentUserId()
-        => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
 }
 
-/// <summary>Body del reseteo de contraseña.</summary>
-public sealed record ResetPasswordRequest(string NewPassword);
+public sealed record CreateUserRequest(
+    string FirstName,
+    string LastName,
+    string Email,
+    string EmployeeId,
+    string Role,
+    string? Phone = null);
 
-/// <summary>Body del alta/baja lógica.</summary>
-public sealed record SetActiveRequest(bool IsActive);
+public sealed record UpdateUserRequest(
+    string? FirstName = null,
+    string? LastName = null,
+    string? Phone = null,
+    string? Role = null);

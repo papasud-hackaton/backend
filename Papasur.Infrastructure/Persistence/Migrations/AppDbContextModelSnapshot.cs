@@ -35,6 +35,22 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("action");
 
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("actor_name");
+
+                    b.Property<string>("ActorRole")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("actor_role");
+
+                    b.Property<string>("Changes")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("changes");
+
                     b.Property<string>("Detail")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
@@ -69,6 +85,9 @@ namespace Papasur.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Action")
                         .HasDatabaseName("ix_audit_entry_action");
+
+                    b.HasIndex("ActorRole")
+                        .HasDatabaseName("ix_audit_entry_actor_role");
 
                     b.HasIndex("OccurredAt")
                         .HasDatabaseName("ix_audit_entry_occurred_at");
@@ -650,6 +669,48 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                     b.ToTable("variedad", (string)null);
                 });
 
+            modelBuilder.Entity("Papasur.Domain.Users.PasswordResetToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("token_hash");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("used_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_password_reset_token");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_password_reset_token_token_hash");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_password_reset_token_user_id");
+
+                    b.ToTable("password_reset_token", (string)null);
+                });
+
             modelBuilder.Entity("Papasur.Domain.Users.Role", b =>
                 {
                     b.Property<int>("Id")
@@ -694,7 +755,7 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         {
                             Id = 3,
                             Description = "Opera la documentación día a día.",
-                            Name = "agente"
+                            Name = "agent"
                         });
                 });
 
@@ -715,25 +776,27 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(256)")
                         .HasColumnName("email");
 
-                    b.Property<string>("EmployeeNumber")
+                    b.Property<string>("EmployeeId")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
-                        .HasColumnName("employee_number");
+                        .HasColumnName("employee_id");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_active");
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("first_name");
 
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_login_at");
 
-                    b.Property<string>("Name")
+                    b.Property<string>("LastName")
                         .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)")
-                        .HasColumnName("name");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("last_name");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
@@ -741,9 +804,20 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(512)")
                         .HasColumnName("password_hash");
 
+                    b.Property<string>("Phone")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("phone");
+
                     b.Property<int>("RoleId")
                         .HasColumnType("integer")
                         .HasColumnName("role_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
 
                     b.HasKey("Id")
                         .HasName("pk_user");
@@ -752,12 +826,15 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_user_email");
 
-                    b.HasIndex("EmployeeNumber")
+                    b.HasIndex("EmployeeId")
                         .IsUnique()
-                        .HasDatabaseName("ix_user_employee_number");
+                        .HasDatabaseName("ix_user_employee_id");
 
                     b.HasIndex("RoleId")
                         .HasDatabaseName("ix_user_role_id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_user_status");
 
                     b.ToTable("user", (string)null);
                 });
@@ -899,6 +976,18 @@ namespace Papasur.Infrastructure.Persistence.Migrations
                     b.Navigation("Lote");
 
                     b.Navigation("Transportista");
+                });
+
+            modelBuilder.Entity("Papasur.Domain.Users.PasswordResetToken", b =>
+                {
+                    b.HasOne("Papasur.Domain.Users.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_password_reset_token_user_user_id");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Papasur.Domain.Users.User", b =>

@@ -25,7 +25,7 @@ public class PaginationTests
     [Fact]
     public void PagedResult_CalculaTotalPagesYNavegacion()
     {
-        var result = new PagedResult<int>([1, 2, 3], Page: 2, PageSize: 3, TotalCount: 10);
+        var result = new PagedResult<int>([1, 2, 3], Page: 2, PageSize: 3, Total: 10);
 
         Assert.Equal(4, result.TotalPages);
         Assert.True(result.HasPrevious);
@@ -35,13 +35,13 @@ public class PaginationTests
     [Fact]
     public void Map_ConservaLosMetadatosDePaginacion()
     {
-        var result = new PagedResult<int>([1, 2], Page: 2, PageSize: 2, TotalCount: 7);
+        var result = new PagedResult<int>([1, 2], Page: 2, PageSize: 2, Total: 7);
 
         var mapped = result.Map(i => i.ToString());
 
         Assert.Equal(["1", "2"], mapped.Items);
         Assert.Equal(2, mapped.Page);
-        Assert.Equal(7, mapped.TotalCount);
+        Assert.Equal(7, mapped.Total);
         Assert.Equal(4, mapped.TotalPages);
     }
 }

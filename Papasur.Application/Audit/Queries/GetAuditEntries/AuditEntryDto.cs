@@ -1,18 +1,19 @@
 namespace Papasur.Application.Audit.Queries.GetAuditEntries;
 
 /// <summary>
-/// Fila de auditoría con los datos del agente resueltos (para no obligar al front a
-/// pedir cada usuario por separado).
+/// Entrada de auditoría tal como la consume el front (contrato §6). actorName y actorRole
+/// salen de la propia entrada, no del usuario actual: es el histórico de lo que la persona
+/// era en ese momento.
 /// </summary>
 public sealed record AuditEntryDto(
     Guid Id,
-    Guid UserId,
-    string UserName,
-    string UserEmail,
-    string UserEmployeeNumber,
+    Guid ActorId,
+    string ActorName,
+    string ActorRole,
     string Action,
     string EntityType,
     string? EntityId,
+    string? Changes,
     string? Detail,
     string? IpAddress,
-    DateTime OccurredAt);
+    DateTime CreatedAt);

@@ -202,7 +202,7 @@ public sealed class CopilotoFlujoIntegrationTests : IAsyncLifetime
         var page = await repo.ListAsync(new PageRequest(1, 2), null, null, CancellationToken.None);
 
         Assert.Equal(2, page.PageSize);
-        Assert.True(page.TotalCount >= page.Items.Count);
+        Assert.True(page.Total >= page.Items.Count);
         Assert.All(page.Items, l => Assert.NotNull(l.Variedad));
 
         var primero = page.Items.First();

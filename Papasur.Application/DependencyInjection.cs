@@ -3,7 +3,10 @@ using Papasur.Application.Abstractions;
 using Papasur.Application.Abstractions.Messaging;
 using Papasur.Application.Audit.Queries.GetAuditEntries;
 using Papasur.Application.Auth.Commands.ChangePassword;
+using Papasur.Application.Auth.Commands.ForgotPassword;
 using Papasur.Application.Auth.Commands.Login;
+using Papasur.Application.Auth.Commands.Logout;
+using Papasur.Application.Auth.Commands.ResetPassword;
 using Papasur.Application.Auth.Queries.GetCurrentUser;
 using Papasur.Application.Documentos.Commands.ConfirmarDocumento;
 using Papasur.Application.Documentos.Commands.GenerarBorrador;
@@ -18,8 +21,8 @@ using Papasur.Application.Statuses.Queries.GetStatuses;
 using Papasur.Application.Trazabilidad.Queries.ObtenerLotePorId;
 using Papasur.Application.Trazabilidad.Queries.ObtenerLotes;
 using Papasur.Application.Users.Commands.CreateUser;
-using Papasur.Application.Users.Commands.ResetUserPassword;
-using Papasur.Application.Users.Commands.SetUserActive;
+using Papasur.Application.Users.Commands.DeactivateUser;
+using Papasur.Application.Users.Commands.UpdateUser;
 using Papasur.Application.Users.Queries.GetUserById;
 using Papasur.Application.Users.Queries.GetUsers;
 
@@ -36,14 +39,17 @@ public static class DependencyInjection
         // Auth
         services.AddScoped<ICommandHandler<LoginCommand, Result<LoginResponse>>, LoginCommandHandler>();
         services.AddScoped<ICommandHandler<ChangePasswordCommand, Result>, ChangePasswordCommandHandler>();
+        services.AddScoped<ICommandHandler<LogoutCommand, Result>, LogoutCommandHandler>();
+        services.AddScoped<ICommandHandler<ForgotPasswordCommand, Result>, ForgotPasswordCommandHandler>();
+        services.AddScoped<ICommandHandler<ResetPasswordCommand, Result>, ResetPasswordCommandHandler>();
         services.AddScoped<IQueryHandler<GetCurrentUserQuery, Result<UserDto>>, GetCurrentUserQueryHandler>();
 
         // Users
-        services.AddScoped<ICommandHandler<CreateUserCommand, Result<Guid>>, CreateUserCommandHandler>();
+        services.AddScoped<ICommandHandler<CreateUserCommand, Result<UserDto>>, CreateUserCommandHandler>();
+        services.AddScoped<ICommandHandler<UpdateUserCommand, Result<UserDto>>, UpdateUserCommandHandler>();
+        services.AddScoped<ICommandHandler<DeactivateUserCommand, Result<UserDto>>, DeactivateUserCommandHandler>();
         services.AddScoped<IQueryHandler<GetUsersQuery, PagedResult<UserDto>>, GetUsersQueryHandler>();
         services.AddScoped<IQueryHandler<GetUserByIdQuery, Result<UserDto>>, GetUserByIdQueryHandler>();
-        services.AddScoped<ICommandHandler<ResetUserPasswordCommand, Result>, ResetUserPasswordCommandHandler>();
-        services.AddScoped<ICommandHandler<SetUserActiveCommand, Result>, SetUserActiveCommandHandler>();
 
         // Roles (catálogo)
         services.AddScoped<IQueryHandler<GetRolesQuery, PagedResult<RoleDto>>, GetRolesQueryHandler>();

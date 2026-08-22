@@ -7,90 +7,122 @@ namespace Papasur.Tests.Auth;
 
 public class LoginCommandHandlerTests
 {
-    private static (LoginCommandHandler Handler, FakeUserRepository Users, FakeAuditRepository Audit) Build(
-        bool isActive = true)
+    private readonly FakeUserRepository _users = new();
+    private readonly FakeAuditRepository _audit = new();
+
+    private LoginCommandHandler Handler()
+        => new(_users, new FakePasswordHasher(), new FakeTokenGenerator(), _audit);
+
+    private User Alta(string status = UserStatuses.Active, string? passwordHash = null)
     {
-        var users = new FakeUserRepository();
-        users.Users.Add(new User
+        var user = new User
         {
             Id = Guid.NewGuid(),
-            Name = "Ana Pérez",
-            Email = "ana@papasur.com",
-            PasswordHash = new FakePasswordHasher().Hash("Secreta.123"),
-            EmployeeNumber = "A-1042",
+            FirstName = "Ana",
+            LastName = "Pérez",
+            Email = "ana@papasud.com",
+            PasswordHash = passwordHash ?? new FakePasswordHasher().Hash("Secreta.123"),
+            EmployeeId = "A-1042",
             RoleId = RoleIds.Supervisor,
             Role = new Role { Id = RoleIds.Supervisor, Name = RoleNames.Supervisor },
-            IsActive = isActive,
+            Status = status,
             CreatedAt = DateTime.UtcNow,
-        });
+        };
 
-        var audit = new FakeAuditRepository();
-        var handler = new LoginCommandHandler(
-            users,
-            new FakePasswordHasher(),
-            new FakeTokenGenerator(),
-            audit);
-
-        return (handler, users, audit);
+        _users.Users.Add(user);
+        return user;
     }
 
     [Fact]
-    public async Task Handle_ConCredencialesValidas_EmiteTokenYAudita()
+    public async Task Handle_ConCredencialesValidas_DevuelveUsuarioYToken()
     {
-        var (handler, _, audit) = Build();
+        var user = Alta();
 
-        var result = await handler.Handle(
-            new LoginCommand("Ana@papasur.com", "Secreta.123"),
+        var result = await Handler().Handle(
+            new LoginCommand("Ana@papasud.com", "Secreta.123"),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("token-for-ana@papasur.com", result.Value.AccessToken);
-        Assert.Equal(RoleNames.Supervisor, result.Value.Role);
+        Assert.Equal($"token-for-{user.Email}", result.Value.Token);
+        Assert.Equal(user.Id, result.Value.User.Id);
+        Assert.Equal(RoleNames.Supervisor, result.Value.User.Role);
+        Assert.Equal("Ana", result.Value.User.FirstName);
         Assert.True(result.Value.ExpiresAt > DateTime.UtcNow);
-        Assert.Equal(AuditActions.Login, Assert.Single(audit.Entries).Action);
     }
 
     [Fact]
-    public async Task Handle_ConPasswordIncorrecta_DevuelveErrorGenericoYAuditaElIntento()
+    public async Task Handle_ActualizaLastLoginYAudita()
     {
-        var (handler, _, audit) = Build();
+        var user = Alta();
 
-        var result = await handler.Handle(
-            new LoginCommand("ana@papasur.com", "otra-cosa") { IpAddress = "10.0.0.7" },
+        await Handler().Handle(
+            new LoginCommand("ana@papasud.com", "Secreta.123") { IpAddress = "10.0.0.7" },
             CancellationToken.None);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal("Auth.InvalidCredentials", result.Error.Code);
+        Assert.NotNull(user.LastLoginAt);
 
-        var entry = Assert.Single(audit.Entries);
-        Assert.Equal(AuditActions.LoginFailed, entry.Action);
+        var entry = Assert.Single(_audit.Entries);
+        Assert.Equal(AuditActions.UserLogin, entry.Action);
+        Assert.Equal("Ana Pérez", entry.ActorName);
+        Assert.Equal(RoleNames.Supervisor, entry.ActorRole);
         Assert.Equal("10.0.0.7", entry.IpAddress);
     }
 
     [Fact]
-    public async Task Handle_ConCorreoInexistente_NoRevelaSiElUsuarioExiste()
+    public async Task Handle_UsuarioInexistenteYPasswordIncorrecta_DevuelvenElMISMOError()
     {
-        var (handler, _, audit) = Build();
+        Alta();
+        var handler = Handler();
 
-        var result = await handler.Handle(
-            new LoginCommand("nadie@papasur.com", "Secreta.123"),
+        var inexistente = await handler.Handle(
+            new LoginCommand("nadie@papasud.com", "Secreta.123"),
+            CancellationToken.None);
+
+        var incorrecta = await handler.Handle(
+            new LoginCommand("ana@papasud.com", "otra-cosa"),
+            CancellationToken.None);
+
+        // Contrato §1: si difieren, se filtra qué cuentas existen.
+        Assert.True(inexistente.IsFailure);
+        Assert.True(incorrecta.IsFailure);
+        Assert.Equal(inexistente.Error.Code, incorrecta.Error.Code);
+        Assert.Equal(inexistente.Error.Message, incorrecta.Error.Message);
+        Assert.Equal("El correo o la contraseña no son correctos.", incorrecta.Error.Message);
+    }
+
+    [Fact]
+    public async Task Handle_UsuarioInactivo_DevuelveElErrorDeCuentaDesactivada()
+    {
+        Alta(UserStatuses.Inactive);
+
+        var result = await Handler().Handle(
+            new LoginCommand("ana@papasud.com", "Secreta.123"),
+            CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("Auth.Disabled", result.Error.Code);
+        Assert.Equal("Tu cuenta está desactivada. Contactá a un administrador.", result.Error.Message);
+    }
+
+    [Fact]
+    public async Task Handle_UsuarioInvitadoSinContrasena_NoPuedeEntrar()
+    {
+        Alta(UserStatuses.Invited, passwordHash: string.Empty);
+
+        var result = await Handler().Handle(
+            new LoginCommand("ana@papasud.com", "lo-que-sea"),
             CancellationToken.None);
 
         Assert.True(result.IsFailure);
         Assert.Equal("Auth.InvalidCredentials", result.Error.Code);
-        Assert.Empty(audit.Entries);
     }
 
     [Fact]
-    public async Task Handle_ConUsuarioInactivo_NoEmiteToken()
+    public async Task Handle_SinDatos_DevuelveFailure()
     {
-        var (handler, _, _) = Build(isActive: false);
-
-        var result = await handler.Handle(
-            new LoginCommand("ana@papasur.com", "Secreta.123"),
-            CancellationToken.None);
+        var result = await Handler().Handle(new LoginCommand("", ""), CancellationToken.None);
 
         Assert.True(result.IsFailure);
-        Assert.Equal("Auth.UserInactive", result.Error.Code);
+        Assert.Equal("Auth.InvalidCredentials", result.Error.Code);
     }
 }

@@ -57,7 +57,7 @@ public sealed class EfItemRepositoryIntegrationTests : IAsyncLifetime
         await using (var db = CreateDbContext())
         {
             var page = await new EfItemRepository(db).ListAsync(new PageRequest(1, 20), CancellationToken.None);
-            Assert.Equal(1, page.TotalCount);
+            Assert.Equal(1, page.Total);
             var guardado = Assert.Single(page.Items);
             Assert.Equal(item.Id, guardado.Id);
             Assert.Equal("Integración", guardado.Nombre);

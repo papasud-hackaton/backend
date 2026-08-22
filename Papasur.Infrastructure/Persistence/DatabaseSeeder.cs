@@ -50,12 +50,15 @@ public sealed class DatabaseSeeder(
         db.Users.Add(new User
         {
             Id = Guid.NewGuid(),
-            Name = "Administrador",
+            FirstName = configuration["Seed:AdminFirstName"] ?? "Admin",
+            LastName = configuration["Seed:AdminLastName"] ?? "Papasud",
             Email = email.Trim().ToLowerInvariant(),
             PasswordHash = passwordHasher.Hash(password),
-            EmployeeNumber = configuration["Seed:AdminEmployeeNumber"] ?? "0001",
+            EmployeeId = configuration["Seed:AdminEmployeeId"]
+                ?? configuration["Seed:AdminEmployeeNumber"]
+                ?? "0001",
             RoleId = RoleIds.Admin,
-            IsActive = true,
+            Status = UserStatuses.Active,
             CreatedAt = DateTime.UtcNow,
         });
 

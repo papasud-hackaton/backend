@@ -19,19 +19,41 @@ public class EfAuditRepository(AppDbContext db) : IAuditRepository
         AuditFilter filter,
         CancellationToken cancellationToken)
     {
-        var query = db.AuditEntries
-            .AsNoTracking()
-            .Include(a => a.User)
-            .AsQueryable();
+        var query = Filtrar(filter);
 
-        if (filter.UserId is { } userId)
+        var total = await query.CountAsync(cancellationToken);
+
+        var entries = await Ordenar(query)
+            .Skip(page.Skip)
+            .Take(page.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<AuditEntry>(entries, page.Page, page.PageSize, total);
+    }
+
+    public async Task<IReadOnlyList<AuditEntry>> ListAllAsync(
+        AuditFilter filter,
+        CancellationToken cancellationToken)
+        => await Ordenar(Filtrar(filter)).ToListAsync(cancellationToken);
+
+    private IQueryable<AuditEntry> Filtrar(AuditFilter filter)
+    {
+        var query = db.AuditEntries.AsNoTracking().AsQueryable();
+
+        if (filter.ActorId is { } actorId)
         {
-            query = query.Where(a => a.UserId == userId);
+            query = query.Where(a => a.UserId == actorId);
         }
 
-        if (!string.IsNullOrWhiteSpace(filter.Action))
+        if (filter.Actions is { Count: > 0 } actions)
         {
-            query = query.Where(a => a.Action == filter.Action);
+            query = query.Where(a => actions.Contains(a.Action));
+        }
+
+        if (filter.Roles is { Count: > 0 } roles)
+        {
+            // Filtra por el rol que la persona tenía al momento del hecho, no por el actual.
+            query = query.Where(a => roles.Contains(a.ActorRole));
         }
 
         if (!string.IsNullOrWhiteSpace(filter.EntityType))
@@ -44,6 +66,15 @@ public class EfAuditRepository(AppDbContext db) : IAuditRepository
             query = query.Where(a => a.EntityId == filter.EntityId);
         }
 
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var pattern = $"%{filter.Search}%";
+            query = query.Where(a =>
+                EF.Functions.ILike(a.ActorName, pattern)
+                || EF.Functions.ILike(a.Action, pattern)
+                || (a.Detail != null && EF.Functions.ILike(a.Detail, pattern)));
+        }
+
         if (filter.From is { } from)
         {
             query = query.Where(a => a.OccurredAt >= from);
@@ -54,15 +85,9 @@ public class EfAuditRepository(AppDbContext db) : IAuditRepository
             query = query.Where(a => a.OccurredAt <= to);
         }
 
-        var total = await query.CountAsync(cancellationToken);
-
-        var entries = await query
-            .OrderByDescending(a => a.OccurredAt)
-            .ThenBy(a => a.Id)
-            .Skip(page.Skip)
-            .Take(page.PageSize)
-            .ToListAsync(cancellationToken);
-
-        return new PagedResult<AuditEntry>(entries, page.Page, page.PageSize, total);
+        return query;
     }
+
+    private static IQueryable<AuditEntry> Ordenar(IQueryable<AuditEntry> query)
+        => query.OrderByDescending(a => a.OccurredAt).ThenBy(a => a.Id);
 }

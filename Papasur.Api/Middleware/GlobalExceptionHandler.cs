@@ -1,12 +1,12 @@
 using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Mvc;
+using Papasur.Api.Contracts;
 
 namespace Papasur.Api.Middleware;
 
 /// <summary>
-/// Última línea de defensa: cualquier excepción no manejada se loguea y sale como
-/// 500 ProblemDetails (RFC 7807) sin filtrar detalles internos. Los errores de negocio
-/// esperables NO deberían llegar acá: se modelan con Result en Application.
+/// Último recinto para lo inesperado: cualquier excepción no manejada se convierte en un 500
+/// con la MISMA forma de error que el resto de la API ({ message, code }), sin filtrar detalles
+/// internos al cliente. Lo esperable se maneja con el Result pattern, no con excepciones.
 /// </summary>
 public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logger) : IExceptionHandler
 {
@@ -15,18 +15,17 @@ public sealed class GlobalExceptionHandler(ILogger<GlobalExceptionHandler> logge
         Exception exception,
         CancellationToken cancellationToken)
     {
-        logger.LogError(exception, "Excepción no manejada en {Path}", httpContext.Request.Path);
+        logger.LogError(
+            exception,
+            "Error no manejado en {Method} {Path}",
+            httpContext.Request.Method,
+            httpContext.Request.Path);
 
-        var problem = new ProblemDetails
-        {
-            Status = StatusCodes.Status500InternalServerError,
-            Title = "Error interno del servidor",
-            Detail = "Ocurrió un error inesperado. Reintentá más tarde.",
-            Instance = httpContext.Request.Path,
-        };
+        httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
 
-        httpContext.Response.StatusCode = problem.Status.Value;
-        await httpContext.Response.WriteAsJsonAsync(problem, cancellationToken);
+        await httpContext.Response.WriteAsJsonAsync(
+            new ApiError("Ocurrió un error inesperado. Volvé a intentar en unos minutos.", "internal_error"),
+            cancellationToken);
 
         return true;
     }
