@@ -350,31 +350,19 @@ OpenAPI en `/openapi/v1.json`, solo en Development.
 | Prioridad | Endpoint |
 | --- | --- |
 | Media | `PUT /document-types/{code}` |
-| Media | `GET /organization` · `PATCH /organization` · `PATCH /users/me/preferences` |
+| Media | `PATCH /users/me/preferences` |
 | Baja | `GET /forms/{id}/preview` |
 | Baja | `POST /ai/parse-dictation` · `POST /ai/prefill` |
 
 ---
 
-## 11. Hueco de seguridad conocido
+## 11. Autorización
 
-**Estos endpoints no exigen autenticación** porque sus controllers no declaran
-`[Authorize]` y no hay política global:
+Política **fail-closed**: todo endpoint exige token salvo los marcados
+`[AllowAnonymous]` — `/auth/login`, `/auth/forgot-password`,
+`/auth/reset-password` y `/health`. Un controller que se olvide de
+`[Authorize]` queda cerrado, no abierto.
 
-```
-/locations   /customers   /lots   /document-types   /metrics/overview   /items
-```
-
-El contrato pide token en todo lo que no sea login, forgot-password y
-reset-password. Se cierra con una política de fallback en `Program.cs`:
-
-```csharp
-builder.Services.AddAuthorizationBuilder()
-    .AddPolicy("Admin", policy => policy.RequireRole("admin"))
-    .SetFallbackPolicy(new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build());
-```
-
-Con eso, todo pide token salvo lo marcado `[AllowAnonymous]`; hay que agregarle
-ese atributo a `/health`.
+Verificado: los seis endpoints que antes estaban abiertos (`/locations`,
+`/customers`, `/lots`, `/document-types`, `/metrics/overview`, `/items`)
+devuelven **401** sin token y 200 con token.

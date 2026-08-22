@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Papasur.Api.Middleware;
@@ -96,7 +97,13 @@ try
         });
 
     builder.Services.AddAuthorizationBuilder()
-        .AddPolicy("Admin", policy => policy.RequireRole("admin"));
+        .AddPolicy("Admin", policy => policy.RequireRole("admin"))
+        // Fail-closed: TODO endpoint exige token salvo los marcados [AllowAnonymous]
+        // (login, forgot/reset-password y /health). Sin esto, un controller que se olvide
+        // de [Authorize] queda abierto a internet.
+        .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build());
 
     // Rate limiting global (fixed window por IP) con 429 explícito.
     builder.Services.AddRateLimiter(options =>
@@ -194,7 +201,7 @@ try
     app.UseAuthorization();
 
     // /health verifica DB (503 si Postgres no responde) — usable como healthcheck de contenedor.
-    app.MapHealthChecks("/health");
+    app.MapHealthChecks("/health").AllowAnonymous();
 
     app.MapControllers();
 
