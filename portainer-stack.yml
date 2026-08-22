@@ -1,0 +1,74 @@
+# Stack para Portainer (Stacks → Add stack → Web editor).
+# Las variables van en la sección "Environment variables" de Portainer, NO en este archivo:
+# así el YAML se puede versionar sin secrets adentro.
+#
+# Variables a cargar en Portainer:
+#   DOCKER_REGISTRY   2.24.86.109:5000
+#   API_IMAGE_TAG     test
+#   PG_CONN           Host=...;Port=5432;Database=papasud;Username=...;Password=...;SSL Mode=Require;Trust Server Certificate=true
+#   JWT_KEY           clave HS256 de 32+ bytes
+#   SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD   admin inicial (sólo se crea si no hay usuarios)
+#   CORS_ORIGIN_0 / CORS_ORIGIN_1            orígenes del front (sin esto, fail-closed)
+#   API_PORT          puerto público (default 8090)
+
+services:
+  papasur-api:
+    image: "${DOCKER_REGISTRY}/papasur/api:${API_IMAGE_TAG:-test}"
+    container_name: papasur-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__pg: "${PG_CONN}"
+      # Aplica migraciones pendientes al arrancar y las loguea.
+      # Ponerlo en false si preferís aplicarlas a mano con un script idempotente.
+      Ef__AutoMigrate: "${EF_AUTOMIGRATE:-true}"
+      Jwt__SymmetricKey: "${JWT_KEY}"
+      Jwt__Issuer: "${JWT_ISSUER:-papasur}"
+      Jwt__Audience: "${JWT_AUDIENCE:-papasur}"
+      Jwt__ExpirationMinutes: "${JWT_EXPIRATION_MINUTES:-480}"
+      Seed__AdminEmail: "${SEED_ADMIN_EMAIL:-}"
+      Seed__AdminPassword: "${SEED_ADMIN_PASSWORD:-}"
+      Seed__AdminEmployeeNumber: "${SEED_ADMIN_EMPLOYEE_NUMBER:-0001}"
+      Cors__AllowedOrigins__0: "${CORS_ORIGIN_0:-}"
+      Cors__AllowedOrigins__1: "${CORS_ORIGIN_1:-}"
+      RateLimiting__PermitLimit: "${RATE_LIMIT_PERMITS:-100}"
+      RateLimiting__WindowSeconds: "${RATE_LIMIT_WINDOW_SECONDS:-10}"
+    ports:
+      - "${API_PORT:-8090}:8080"
+    healthcheck:
+      # /health verifica Postgres: si la base no responde devuelve 503 y el contenedor
+      # queda unhealthy (la imagen es self-contained y no trae curl, por eso bash /dev/tcp).
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# ---------------------------------------------------------------------------
+# Variante con Postgres 17 en el mismo stack (si NO usás la base de Render).
+# Descomentar todo el bloque y apuntar PG_CONN a Host=papasur-db.
+# ---------------------------------------------------------------------------
+#  papasur-db:
+#    image: postgres:17
+#    container_name: papasur-db
+#    restart: unless-stopped
+#    environment:
+#      POSTGRES_DB: "${POSTGRES_DB:-papasur}"
+#      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+#      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+#    volumes:
+#      - pgdata:/var/lib/postgresql/data
+#    healthcheck:
+#      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-papasur}"]
+#      interval: 5s
+#      timeout: 3s
+#      retries: 10
+#
+#volumes:
+#  pgdata:

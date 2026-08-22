@@ -1,8 +1,11 @@
 # Multi-stage Dockerfile.
 # Targets: base (runtime) -> build -> publish -> dev (hot reload compose override) -> final (producción).
 
-# Runtime base for final self-contained production image.
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-bookworm-slim AS base
+# Runtime base for the final self-contained production image.
+# runtime-deps (not aspnet): the publish is self-contained, so the image only needs
+# the native dependencies, not the .NET runtime. .NET 10 has no Debian tag — noble is
+# Ubuntu 24.04 LTS.
+FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-noble AS base
 
 ARG APP_UID=1000
 
@@ -20,6 +23,10 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 
 WORKDIR /src
+
+# Los props centralizados (TargetFramework, CPM) van ANTES: sin ellos el restore
+# no sabe para qué framework restaurar ni qué versiones usar.
+COPY ["Directory.Build.props", "Directory.Packages.props", "./"]
 
 COPY ["Papasur.Api/Papasur.Api.csproj", "Papasur.Api/"]
 COPY ["Papasur.Application/Papasur.Application.csproj", "Papasur.Application/"]
