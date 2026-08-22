@@ -119,7 +119,18 @@ public sealed class UpdateFormCommandHandler(
         form.Version += 1;
         form.UpdatedAt = DateTime.UtcNow;
 
-        await forms.UpdateAsync(form, replacementItems, cancellationToken);
+        try
+        {
+            await forms.UpdateAsync(form, replacementItems, cancellationToken);
+        }
+        catch (ConcurrencyConflictException)
+        {
+            // Alguien más guardó primero: se devuelve el estado actual para que
+            // el front pueda mostrar qué cambió (contrato §0.1).
+            var actual = await forms.GetByIdAsync(command.Id, cancellationToken);
+            return Result.Success(UpdateFormResult.Conflict(
+                await assembler.ToDtoAsync(actual!, cancellationToken)));
+        }
 
         await audit.AddAsync(
             AuditFactory.Create(

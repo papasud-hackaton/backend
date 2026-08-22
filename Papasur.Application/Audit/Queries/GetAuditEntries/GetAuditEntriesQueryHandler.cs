@@ -35,8 +35,35 @@ public static class AuditMapping
         e.Action,
         e.EntityType,
         e.EntityId,
-        e.Changes,
-        e.Detail,
+        // Etiqueta legible de la entidad tocada; si no hay detalle, el id sirve de referencia.
+        string.IsNullOrWhiteSpace(e.Detail) ? e.EntityId ?? string.Empty : e.Detail,
+        ParseChanges(e.Changes),
         e.IpAddress,
         e.OccurredAt);
+
+    /// <summary>
+    /// changes se guarda como JSON y viaja como ARRAY: el front hace .map() sobre él.
+    /// Un JSON inválido no puede tumbar la pantalla de auditoría, así que devuelve null.
+    /// </summary>
+    private static IReadOnlyList<AuditFieldChange>? ParseChanges(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<List<AuditFieldChange>>(
+                json,
+                new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                });
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
 }

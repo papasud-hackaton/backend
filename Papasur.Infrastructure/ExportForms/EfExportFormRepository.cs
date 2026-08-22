@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Papasur.Application.Abstractions;
+using Papasur.Application.Abstractions;
 using Papasur.Application.ExportForms.Ports;
 using Papasur.Domain.ExportForms;
 using Papasur.Infrastructure.Persistence;
@@ -88,7 +89,16 @@ public class EfExportFormRepository(AppDbContext db) : IExportFormRepository
             }
         }
 
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // Otra escritura tocó el formulario entre el GET y el SaveChanges: es el mismo
+            // conflicto que cubre If-Match, así que se traduce al 409 en vez de a un 500.
+            throw new ConcurrencyConflictException(ex);
+        }
     }
 
     public async Task<string> NextCodeAsync(int year, CancellationToken cancellationToken)

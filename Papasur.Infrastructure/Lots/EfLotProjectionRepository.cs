@@ -66,17 +66,16 @@ public class EfLotProjectionRepository(AppDbContext db) : ILotProjectionReposito
 
         var total = await query.CountAsync(cancellationToken);
 
-        var items = await Project(query.OrderBy(l => l.Codigo).ThenBy(l => l.Id))
-            .Skip(page.Skip)
-            .Take(page.PageSize)
-            .ToListAsync(cancellationToken);
+        var items = await ProjectAsync(
+            query.OrderBy(l => l.Codigo).ThenBy(l => l.Id).Skip(page.Skip).Take(page.PageSize),
+            cancellationToken);
 
         return new PagedResult<SeedLotDto>(items, page.Page, page.PageSize, total);
     }
 
     public async Task<SeedLotDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
-        => await Project(db.Lotes.AsNoTracking().Where(l => l.Id == id))
-            .FirstOrDefaultAsync(cancellationToken);
+        => (await ProjectAsync(db.Lotes.AsNoTracking().Where(l => l.Id == id), cancellationToken))
+            .FirstOrDefault();
 
     public async Task<IReadOnlyList<SeedLotDto>> GetByIdsAsync(
         IReadOnlyCollection<Guid> ids,
@@ -87,8 +86,7 @@ public class EfLotProjectionRepository(AppDbContext db) : ILotProjectionReposito
             return [];
         }
 
-        return await Project(db.Lotes.AsNoTracking().Where(l => ids.Contains(l.Id)))
-            .ToListAsync(cancellationToken);
+        return await ProjectAsync(db.Lotes.AsNoTracking().Where(l => ids.Contains(l.Id)), cancellationToken);
     }
 
     /// <summary>El estado es derivado, así que el filtro se traduce a la condición que lo produce.</summary>
@@ -123,45 +121,78 @@ public class EfLotProjectionRepository(AppDbContext db) : ILotProjectionReposito
         _ => query.Where(l => false),
     };
 
-    /// <summary>Una sola proyección: EF no traduce un Select encadenado sobre un tipo anónimo.</summary>
-    private IQueryable<SeedLotDto> Project(IQueryable<Lote> lotes)
-        => lotes.Select(l => new SeedLotDto(
+    /// <summary>
+    /// Materializa la página y proyecta en memoria.
+    ///
+    /// El filtrado, el orden y la paginación siguen resolviéndose en SQL (que es lo que importa
+    /// para no traer la tabla entera); sólo la proyección se hace acá. Escribirla como Select
+    /// traducible obligaba a repetir cada suma cuatro veces y terminaba sin traducirse igual
+    /// —la navegación opcional a StorageLocation rompía la traducción y devolvía 500—.
+    /// Son ~150 lotes: el costo es irrelevante y desaparece toda una familia de errores.
+    /// </summary>
+    private async Task<List<SeedLotDto>> ProjectAsync(
+        IQueryable<Lote> lotes,
+        CancellationToken cancellationToken)
+    {
+        var entidades = await lotes
+            .Include(l => l.Variedad)
+            .Include(l => l.StorageLocation)
+            .Include(l => l.Movimientos)
+            .ToListAsync(cancellationToken);
+
+        if (entidades.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = entidades.Select(l => l.Id).ToList();
+
+        // Kilos comprometidos por formularios vivos, en una sola consulta.
+        var comprometidos = await db.ExportFormItems
+            .AsNoTracking()
+            .Where(i => ids.Contains(i.LotId) && CommittingStatuses.Contains(i.ExportForm.Status))
+            .GroupBy(i => i.LotId)
+            .Select(g => new { LotId = g.Key, Kg = g.Sum(i => (decimal?)i.QuantityKg) ?? 0m })
+            .ToDictionaryAsync(x => x.LotId, x => x.Kg, cancellationToken);
+
+        return [.. entidades.Select(l => ToDto(l, comprometidos.GetValueOrDefault(l.Id)))];
+    }
+
+    private static SeedLotDto ToDto(Lote l, decimal reservados)
+    {
+        var entradas = l.Movimientos.Where(m => Inbound.Contains(m.Tipo)).Sum(m => m.Kilogramos);
+        var salidas = l.Movimientos.Where(m => Outbound.Contains(m.Tipo)).Sum(m => m.Kilogramos);
+        var saldo = entradas - salidas;
+        var disponible = saldo > 0m ? saldo : 0m;
+
+        var status = l.EnCuarentena
+            ? LotStatuses.Quarantined
+            : saldo <= 0m
+                ? LotStatuses.Depleted
+                : reservados > 0m
+                    ? LotStatuses.Reserved
+                    : LotStatuses.Available;
+
+        return new SeedLotDto(
             l.Id,
             l.Codigo,
             Species,
-            l.Variedad.Nombre,
+            l.Variedad?.Nombre ?? string.Empty,
             l.Categoria ?? string.Empty,
-            l.Campania
-                ?? (l.Movimientos.Min(m => (DateTime?)m.Fecha) != null
-                    ? l.Movimientos.Min(m => (DateTime?)m.Fecha)!.Value.Year
-                    : l.CreatedAt.Year),
+            l.Campania ?? l.Movimientos.Select(m => (DateTime?)m.Fecha).Min()?.Year ?? l.CreatedAt.Year,
             l.StorageLocationId,
-            l.StorageLocation != null ? l.StorageLocation.Code : string.Empty,
+            l.StorageLocation?.Code ?? string.Empty,
             l.Posicion,
-            l.Movimientos.Where(m => Inbound.Contains(m.Tipo)).Sum(m => (decimal?)m.Kilogramos) ?? 0m,
-            (l.Movimientos.Where(m => Inbound.Contains(m.Tipo)).Sum(m => (decimal?)m.Kilogramos) ?? 0m)
-                - (l.Movimientos.Where(m => Outbound.Contains(m.Tipo)).Sum(m => (decimal?)m.Kilogramos) ?? 0m) > 0m
-                ? (l.Movimientos.Where(m => Inbound.Contains(m.Tipo)).Sum(m => (decimal?)m.Kilogramos) ?? 0m)
-                    - (l.Movimientos.Where(m => Outbound.Contains(m.Tipo)).Sum(m => (decimal?)m.Kilogramos) ?? 0m)
-                : 0m,
-            db.ExportFormItems
-                .Where(i => i.LotId == l.Id && CommittingStatuses.Contains(i.ExportForm.Status))
-                .Sum(i => (decimal?)i.QuantityKg) ?? 0m,
+            entradas,
+            disponible,
+            reservados,
             l.PoderGerminativo,
             l.Pureza,
             l.Humedad,
             l.Tratamiento,
             l.RegistroInase,
-            l.EnCuarentena
-                ? LotStatuses.Quarantined
-                : (l.Movimientos.Where(m => Inbound.Contains(m.Tipo)).Sum(m => (decimal?)m.Kilogramos) ?? 0m)
-                    - (l.Movimientos.Where(m => Outbound.Contains(m.Tipo)).Sum(m => (decimal?)m.Kilogramos) ?? 0m) <= 0m
-                    ? LotStatuses.Depleted
-                    : (db.ExportFormItems
-                        .Where(i => i.LotId == l.Id && CommittingStatuses.Contains(i.ExportForm.Status))
-                        .Sum(i => (decimal?)i.QuantityKg) ?? 0m) > 0m
-                        ? LotStatuses.Reserved
-                        : LotStatuses.Available,
-            l.Movimientos.Max(m => (DateTime?)m.Fecha),
-            null));
+            status,
+            l.Movimientos.Select(m => (DateTime?)m.Fecha).Max(),
+            null);
+    }
 }
