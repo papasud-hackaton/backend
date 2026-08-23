@@ -179,7 +179,15 @@ Todo lo que esté expuesto tiene que estar en este archivo. Nada de
 
 ```bash
 #!/usr/sbin/nft -f
-flush ruleset
+
+# NO usar `flush ruleset`: además de las nuestras borra las tablas ip/ip6 que
+# maneja iptables-nft, que son las de Docker — incluido el DNAT de los puertos
+# publicados. Si lo corrés con los contenedores arriba, quedan todos
+# inalcanzables hasta que reinicies el daemon (`systemctl restart docker`).
+# Recreamos SOLO nuestra tabla: el `add` la crea si no existe, para que el
+# `delete` nunca falle.
+add table inet filter
+delete table inet filter
 
 table inet filter {
 
@@ -248,7 +256,8 @@ nft -c -f /etc/nftables.conf && nft -f /etc/nftables.conf && echo "aplicado"
 
 ### Red de seguridad para no quedarte afuera
 
-Antes de tocar reglas desde SSH:
+Antes de tocar reglas desde SSH (y vale también para el caso de arriba: si te
+comés las tablas de Docker, esto te devuelve el estado anterior solo):
 
 ```bash
 # Si en 5 minutos no cancelás, vuelve al ruleset anterior
